@@ -2,6 +2,13 @@
 
 A zero-dependency React + TypeScript math-expression input. It stores and emits raw, KaTeX-compatible LaTeX; it does not render or validate the expression.
 
+## Run the demo
+
+```sh
+npm install
+npm run dev
+```
+
 ```tsx
 import { useState } from "react";
 import { MathInput } from "./src";

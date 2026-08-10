@@ -1,0 +1,60 @@
+:root {
+  color: #15233e;
+  background: #e6e2d8;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { min-width: 320px; margin: 0; }
+button, input { font: inherit; }
+
+.demo-shell {
+  --navy: #15233e;
+  --chalk: #f9f7f1;
+  --blue: #84a6be;
+  --rust: #d76f42;
+  --line: rgb(21 35 62 / 22%);
+  width: min(100% - 2rem, 68rem);
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 5vw, 4.5rem) 0 1.8rem;
+}
+
+.demo-hero { display: grid; grid-template-columns: 4.1rem minmax(0, 1fr); gap: clamp(1rem, 3vw, 2.4rem); margin-bottom: clamp(3.3rem, 10vw, 7rem); }
+.demo-index { display: flex; flex-direction: column; align-items: center; gap: 0.65rem; padding-top: 0.65rem; color: var(--rust); font: 700 0.7rem/1 ui-monospace, monospace; letter-spacing: 0.08em; }
+.demo-index i { width: 1px; height: 5.3rem; background: currentColor; opacity: 0.85; }
+.demo-index span:last-child { color: var(--navy); }
+.demo-kicker, .workbench__eyebrow { margin: 0 0 0.8rem; color: var(--rust); font: 700 0.7rem/1 ui-monospace, monospace; letter-spacing: 0.12em; text-transform: uppercase; }
+.demo-intro h1 { max-width: 10ch; margin: 0; color: var(--navy); font-family: Georgia, "Times New Roman", serif; font-size: clamp(3.25rem, 8vw, 6.8rem); font-weight: 400; line-height: 0.86; letter-spacing: -0.075em; }
+.demo-lede { max-width: 28rem; margin: 1.8rem 0 0; color: #46556c; font-size: clamp(1rem, 1.8vw, 1.15rem); line-height: 1.55; }
+
+.workbench { padding: clamp(1.25rem, 4vw, 2.4rem); background: var(--navy); color: var(--chalk); box-shadow: 0.75rem 0.75rem 0 var(--blue); }
+.workbench__header { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1.6rem; }
+.workbench__header h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 400; letter-spacing: -0.04em; }
+.workbench__status { display: flex; align-items: center; gap: 0.45rem; color: #c5d3dc; font: 600 0.67rem/1 ui-monospace, monospace; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+.workbench__status b { width: 0.48rem; height: 0.48rem; background: #8fce8a; border-radius: 50%; }
+.demo-math-input { width: 100%; max-width: none; --math-ink: #15233e; --math-paper: #f9f7f1; --math-rule: #b5c1c9; --math-accent: #d76f42; }
+.workbench__footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.15rem; color: #c5d3dc; }
+.workbench__footer p { margin: 0; font-size: 0.78rem; line-height: 1.6; }
+kbd, .workbench__footer code { padding: 0.1rem 0.28rem; color: var(--chalk); background: rgb(255 255 255 / 11%); border: 1px solid rgb(255 255 255 / 13%); border-radius: 0.18rem; font: 0.75rem ui-monospace, monospace; }
+.copy-button { flex: 0 0 auto; padding: 0.56rem 0.75rem; color: var(--chalk); background: transparent; border: 1px solid #8499a8; border-radius: 0.2rem; cursor: pointer; font: 700 0.68rem/1 ui-monospace, monospace; letter-spacing: 0.06em; text-transform: uppercase; }
+.copy-button:hover { color: var(--navy); background: var(--chalk); }
+.copy-button:focus-visible { outline: 3px solid var(--rust); outline-offset: 3px; }
+
+.output-ledger { margin-top: clamp(3.5rem, 8vw, 6rem); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.output-ledger__label { display: flex; justify-content: space-between; padding: 0.68rem 0; color: #536176; font: 700 0.64rem/1 ui-monospace, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
+.output-ledger__label span:last-child { color: var(--rust); }
+.output-ledger pre { min-height: 5.5rem; margin: 0; padding: 1.25rem 0 1.5rem; overflow-wrap: anywhere; color: var(--navy); font: 500 clamp(1rem, 2vw, 1.38rem)/1.55 ui-monospace, monospace; white-space: pre-wrap; }
+.demo-footer { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1.1rem; color: #536176; font: 0.68rem/1 ui-monospace, monospace; letter-spacing: 0.04em; }
+
+@media (max-width: 540px) {
+  .demo-shell { width: min(100% - 1.25rem, 68rem); }
+  .demo-hero { grid-template-columns: 2.2rem minmax(0, 1fr); gap: 0.75rem; margin-bottom: 3.5rem; }
+  .demo-index i { height: 3.2rem; }
+  .workbench__header, .workbench__footer { align-items: start; flex-direction: column; }
+  .workbench__status { order: -1; }
+  .copy-button { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
