@@ -32,7 +32,7 @@ function EditorIcon({ name }: { name: EditorIconName }) {
 
 const escapeHtml = (text: string) => text.replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[char]!);
 const rootClass = "math-input__root";
-const rootContents = (content: string) => `<svg class="math-input__root-symbol" fill="none" aria-hidden="true"><path d="M1 16.5 7.4 25 18 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /><line x1="17" y1="2" x2="100%" y2="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg><span class="math-input__slot math-input__slot--root" data-slot="root">${content}</span>`;
+const rootContents = (content: string) => `<svg class="math-input__root-symbol" fill="none" aria-hidden="true"><path d="M1 16.5 7.4 25 18 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /><line x1="18" y1="2" x2="100%" y2="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg><span class="math-input__slot math-input__slot--root" data-slot="root">${content}</span>`;
 const rootTemplate = (content: string) => `<span class="${rootClass}" data-math="root">${rootContents(content)}</span>${CARET_ANCHOR}`;
 const fractionClass = "math-input__fraction";
 const fractionContents = (numerator: string, denominator: string) => `<span class="math-input__slot math-input__slot--numerator" data-slot="numerator">${numerator}</span><span class="math-input__slot math-input__slot--denominator" data-slot="denominator">${denominator}</span>`;
@@ -62,8 +62,10 @@ const initialMarkup = (line: string) => {
       if (line.startsWith("\\frac", position)) {
         position += "\\frac".length;
         const numerator = parseGroup();
-        const denominator = parseGroup();
-        markup += numerator === null || denominator === null ? escapeHtml("\\frac") : fractionTemplate(numerator, denominator);
+        const denominator = numerator === null ? null : parseGroup();
+        if (numerator !== null && denominator !== null) markup += fractionTemplate(numerator, denominator);
+        else if (numerator !== null) markup += `${escapeHtml("\\frac{")}${numerator}${escapeHtml("}")}`;
+        else markup += escapeHtml("\\frac");
         continue;
       }
       if (line.startsWith("\\times", position)) {
@@ -77,7 +79,7 @@ const initialMarkup = (line: string) => {
         markup += content === null ? "^" : powerTemplate(content);
         continue;
       }
-      markup += escapeHtml(line[position]);
+      markup += escapeHtml(cleanFormulaText(line[position]));
       position += 1;
     }
     return markup;
@@ -126,22 +128,17 @@ const directSlots = (math: HTMLElement) => Array.from(math.children).filter((chi
 export function MathInput({ value, defaultValue = "", onChange, placeholder = "Write a formula…", disabled = false, className = "", style, "aria-label": ariaLabel = "Math editor" }: MathInputProps) {
   const toRows = (latex: string): Row[] => latex.split("\n").map((text) => ({ id: crypto.randomUUID(), text }));
   const [rows, setRows] = useState<Row[]>(() => toRows(value ?? defaultValue));
-  const [rawValue, setRawValue] = useState(value ?? defaultValue);
   const fields = useRef(new Map<string, HTMLDivElement>());
   const activeRow = useRef<string | null>(null);
   const activeSlot = useRef<HTMLElement | null>(null);
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
-  const [keyboardLog, setKeyboardLog] = useState<string[]>([]);
-  const [copiedSection, setCopiedSection] = useState<"raw" | "keyboard" | null>(null);
   const focusAfterAdd = useRef<string | null>(null);
-  const copyFeedbackTimer = useRef<number | null>(null);
   const lastExternal = useRef(value);
   const labelId = useId();
 
   useEffect(() => {
     if (value === undefined || value === lastExternal.current) return;
     lastExternal.current = value;
-    setRawValue(value);
     setRows(toRows(value));
   }, [value]);
 
@@ -151,17 +148,12 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     if (field) { focusAfterAdd.current = null; placeAtEnd(field); }
   }, [rows]);
 
-  useEffect(() => () => {
-    if (copyFeedbackTimer.current !== null) window.clearTimeout(copyFeedbackTimer.current);
-  }, []);
-
   const publishRows = (nextRows: Row[]) => {
     const next = nextRows.map(({ id, text }) => {
       const field = fields.current.get(id);
       return field ? Array.from(field.childNodes).map(latexFrom).join("") : text;
     }).join("\n");
     lastExternal.current = next;
-    setRawValue(next);
     onChange?.(next);
   };
 
@@ -172,29 +164,6 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     if (!cleanText) return;
     insertText(cleanText);
     publish();
-  };
-
-  const copySection = async (section: "raw" | "keyboard", text: string) => {
-    if (!text) return;
-    try {
-      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
-      else {
-        const clipboardFallback = document.createElement("textarea");
-        clipboardFallback.value = text;
-        clipboardFallback.style.position = "fixed";
-        clipboardFallback.style.opacity = "0";
-        document.body.append(clipboardFallback);
-        clipboardFallback.select();
-        const didCopy = document.execCommand("copy");
-        clipboardFallback.remove();
-        if (!didCopy) return;
-      }
-      setCopiedSection(section);
-      if (copyFeedbackTimer.current !== null) window.clearTimeout(copyFeedbackTimer.current);
-      copyFeedbackTimer.current = window.setTimeout(() => setCopiedSection(null), 1600);
-    } catch {
-      setCopiedSection(null);
-    }
   };
 
   const currentField = () => fields.current.get(activeRow.current ?? rows[0]?.id);
@@ -344,7 +313,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
       insertCleanText("×");
       return;
     }
-    if (event.key === "+" || event.key === "-" || event.key === ":") {
+    if (event.key === "+" || event.key === "-") {
       event.preventDefault();
       insertCleanText(event.key);
       return;
@@ -385,8 +354,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
   };
 
   const buttonClass = "math-input__tool";
-  const copyButtonClass = "math-input__copy";
-  return <div className={`math-input ${className}`.trim()} style={style} onKeyDownCapture={(event) => setKeyboardLog((keys) => [...keys, event.key])}>
+  return <div className={`math-input ${className}`.trim()} style={style}>
     <div className="math-input__frame" aria-labelledby={labelId}>
       <span id={labelId} className="math-input__visually-hidden">{ariaLabel}</span>
       {rows.map((row, index) => <div className="math-input__row" key={row.id}>
@@ -394,10 +362,9 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
           <button type="button" className={buttonClass} onMouseDown={(event) => event.preventDefault()} onClick={() => insert("root")} disabled={disabled} aria-label="Insert square root" title="Square root"><EditorIcon name="root" /></button>
           <button type="button" className={buttonClass} onMouseDown={(event) => event.preventDefault()} onClick={() => insert("fraction")} disabled={disabled} aria-label="Insert fraction" title="Divide"><EditorIcon name="fraction" /></button>
           <button type="button" className={buttonClass} onMouseDown={(event) => event.preventDefault()} onClick={() => insert("power")} disabled={disabled} aria-label="Insert power" title="Power"><EditorIcon name="power" /></button>
-          <span className="math-input__toolbar-label">Formula tools</span>
           {rows.length > 1 && <button type="button" className="math-input__remove-row" onMouseDown={(event) => event.preventDefault()} onClick={() => removeRow(row.id)} aria-label="Remove formula row" title="Remove"><EditorIcon name="remove" /></button>}
         </div>}
-        <div ref={(element) => { if (element) fields.current.set(row.id, element); else fields.current.delete(row.id); }} className="math-input__field" contentEditable={!disabled} suppressContentEditableWarning spellCheck={false} role="textbox" aria-multiline="false" aria-label={`${ariaLabel}, row ${index + 1}`} data-placeholder={index === 0 ? placeholder : "New formula…"} dangerouslySetInnerHTML={{ __html: initialMarkup(row.text) }} onFocus={() => { activeRow.current = row.id; setActiveRowId(row.id); activeSlot.current = selectionSlot(); }} onInput={(event) => { normalizeFormulaDom(event.currentTarget); activeSlot.current = selectionSlot(); publish(); }} onBeforeInput={(event) => {
+        <div ref={(element) => { if (element) fields.current.set(row.id, element); else fields.current.delete(row.id); }} className="math-input__field" contentEditable={!disabled} suppressContentEditableWarning spellCheck={false} role="textbox" aria-multiline="false" aria-label={`${ariaLabel}, row ${index + 1}`} data-placeholder={placeholder} dangerouslySetInnerHTML={{ __html: initialMarkup(row.text) }} onFocus={() => { activeRow.current = row.id; setActiveRowId(row.id); activeSlot.current = selectionSlot(); }} onBlur={() => setActiveRowId(null)} onInput={(event) => { normalizeFormulaDom(event.currentTarget); activeSlot.current = selectionSlot(); publish(); }} onBeforeInput={(event) => {
           const incomingText = event.nativeEvent.data;
           const cleanText = incomingText ? cleanFormulaText(incomingText) : "";
           if (incomingText && cleanText !== incomingText) {
@@ -434,29 +401,6 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
         {activeRowId === row.id && <button type="button" className="math-input__new-row" onMouseDown={(event) => event.preventDefault()} onClick={createRow} disabled={disabled} aria-label="Add new formula row" title="New line"><EditorIcon name="newLine" /></button>}
       </div>)}
     </div>
-    <section className="math-input__panel" aria-label="Raw value">
-      <div className="math-input__panel-heading">
-        <h2>Raw value</h2>
-        <div className="math-input__panel-actions">
-          <span>KaTeX source</span>
-          <button type="button" className={copyButtonClass} onClick={() => void copySection("raw", rawValue)} disabled={!rawValue} aria-label="Copy raw value">{copiedSection === "raw" ? "Copied" : "Copy"}</button>
-        </div>
-      </div>
-      <pre className="math-input__code"><code>{rawValue || "The KaTeX value will appear as you type."}</code></pre>
-    </section>
-    <section className="math-input__panel" aria-label="Keyboard log" aria-live="polite">
-      <div className="math-input__panel-heading">
-        <h2>Keyboard log</h2>
-        <div className="math-input__panel-actions">
-          <span>{keyboardLog.length} keys</span>
-          <button type="button" className={copyButtonClass} onClick={() => void copySection("keyboard", keyboardLog.map(formatKey).join(" "))} disabled={keyboardLog.length === 0} aria-label="Copy keyboard log">{copiedSection === "keyboard" ? "Copied" : "Copy"}</button>
-        </div>
-      </div>
-      <div className="math-input__keys">
-        {keyboardLog.length > 0 ? keyboardLog.map((key, index) => <kbd key={`${key}-${index}`}>{formatKey(key)}</kbd>) : <p>Keys pressed in this editor will appear here.</p>}
-      </div>
-    </section>
-    <p className="math-input__hint">Press <kbd>Enter</kbd> or use the row action to expand · <kbd>←</kbd> <kbd>→</kbd> moves through a formula · click to its right or press <kbd>End</kbd> to continue after it</p>
   </div>;
 }
 
@@ -647,7 +591,6 @@ function insertText(text: string) {
   selection.removeAllRanges();
   selection.addRange(range);
 }
-function formatKey(key: string) { return key === "ArrowRight" ? "Right" : key === " " ? "Space" : key; }
 function adjacentMath(direction: "before" | "after") {
   const selection = window.getSelection();
   if (!selection?.rangeCount || !selection.isCollapsed) return null;
