@@ -46,6 +46,8 @@ When a row is active, its formula tools let learners insert:
 
 Typing `/` converts the immediately preceding number or term into the numerator of a new fraction and moves the caret to its denominator. For example, `10 /` becomes `\frac{10}{}`.
 
+Spaces are ignored. Typing `*` shows `×` and emits `\times`; typing `^` opens a power placeholder at the caret. The division key (`/` or `÷`) always starts a fraction rather than leaving a literal slash in the formula.
+
 The editor treats a formula as a navigable object rather than plain text:
 
 - `→` moves from a numerator to its denominator, then to the position after the formula.
@@ -53,6 +55,7 @@ The editor treats a formula as a navigable object rather than plain text:
 - Clicking inside a numerator, denominator, radical, or power places the caret in that part of the formula.
 - Clicking immediately to the right of a formula, or pressing `End`, continues after it.
 - Typing `=` while inside a formula places it after the whole formula, avoiding invalid placements such as `10^=2`.
+- `Backspace` and `Delete` act only in the current slot (or immediately adjacent formula at the row level). Once every slot of a root, fraction, or power is empty, the next destructive key removes that template as one object.
 
 Press `Enter` or use the row action to add another formula row. Rows can be removed when more than one exists.
 

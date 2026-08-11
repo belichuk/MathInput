@@ -30,23 +30,72 @@ function EditorIcon({ name }: { name: EditorIconName }) {
 }
 
 const escapeHtml = (text: string) => text.replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[char]!);
-const initialMarkup = (line: string) => escapeHtml(line)
-  .replace(/\\sqrt\{([^}]*)\}/g, `<span class="inline-flex shrink-0 items-start align-middle mx-[.08em]" data-math="root"><span class="inline-block -mr-[.18em] min-h-[1.35em] w-[.9em] font-serif text-[1.65em]/[.82]" data-radical="true" contenteditable="false" aria-hidden="true">√</span><span class="inline-block min-h-[1.35em] min-w-[1.2em] border-t-[1.5px] border-current px-[.16em] pl-[.2em] pt-[.02em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="root">$1</span></span>${CARET_ANCHOR}`)
-  .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, `<span class="inline-flex shrink-0 flex-col justify-center align-middle mx-[.17em] -translate-y-[.04em] text-center leading-none" data-math="fraction"><span class="inline-block min-h-[1.15em] min-w-[1.1em] border-b-[1.5px] border-current px-[.28em] pb-[.08em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="numerator">$1</span><span class="inline-block min-h-[1.15em] min-w-[1.1em] px-[.28em] pt-[.08em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="denominator">$2</span></span>${CARET_ANCHOR}`)
-  .replace(/\^\{([^}]*)\}/g, `<span class="inline-flex shrink-0 align-super mx-[.08em] text-[.72em]" data-math="power"><span class="inline-block min-h-[1.15em] min-w-[1.1em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="power">$1</span></span>${CARET_ANCHOR}`);
+const rootClass = "relative inline-flex shrink-0 items-start align-middle mx-[.08em] pt-[.14em] pl-[.82em]";
+const rootContents = (content: string) => `<svg class="pointer-events-none absolute inset-x-0 top-0 z-10 h-[1.5em] w-full overflow-visible" fill="none" aria-hidden="true"><path d="M1 16.5 7.4 25 18 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /><line x1="17" y1="2" x2="100%" y2="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg><span class="relative z-20 inline-block min-h-[1.35em] min-w-[1.2em] px-[.16em] pl-[.2em] pt-[.02em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="root">${content}</span>`;
+const rootTemplate = (content: string) => `<span class="${rootClass}" data-math="root">${rootContents(content)}</span>${CARET_ANCHOR}`;
+const fractionClass = "inline-flex shrink-0 flex-col justify-center align-middle mx-[.17em] -translate-y-[.04em] text-center leading-none";
+const fractionContents = (numerator: string, denominator: string) => `<span class="inline-block min-h-[1.15em] min-w-[1.1em] border-b-[1.5px] border-current px-[.28em] pb-[.08em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="numerator">${numerator}</span><span class="inline-block min-h-[1.15em] min-w-[1.1em] px-[.28em] pt-[.08em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="denominator">${denominator}</span>`;
+const fractionTemplate = (numerator: string, denominator: string) => `<span class="${fractionClass}" data-math="fraction">${fractionContents(numerator, denominator)}</span>${CARET_ANCHOR}`;
+const powerClass = "inline-flex shrink-0 align-super mx-[.08em] text-[.72em]";
+const powerContents = (content: string) => `<span class="inline-block min-h-[1.15em] min-w-[1.1em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="power">${content}</span>`;
+const powerTemplate = (content: string) => `<span class="${powerClass}" data-math="power">${powerContents(content)}</span>${CARET_ANCHOR}`;
+const cleanFormulaText = (text: string) => text.replace(/\s+/g, "").split("*").join("×");
+const initialMarkup = (line: string) => {
+  let position = 0;
+  const parseGroup = (): string | null => {
+    if (line[position] !== "{") return null;
+    position += 1;
+    const content = parseSequence(true);
+    if (line[position] === "}") position += 1;
+    return content;
+  };
+  const parseSequence = (stopAtClosingBrace: boolean): string => {
+    let markup = "";
+    while (position < line.length && !(stopAtClosingBrace && line[position] === "}")) {
+      if (line.startsWith("\\sqrt", position)) {
+        position += "\\sqrt".length;
+        const content = parseGroup();
+        markup += content === null ? escapeHtml("\\sqrt") : rootTemplate(content);
+        continue;
+      }
+      if (line.startsWith("\\frac", position)) {
+        position += "\\frac".length;
+        const numerator = parseGroup();
+        const denominator = parseGroup();
+        markup += numerator === null || denominator === null ? escapeHtml("\\frac") : fractionTemplate(numerator, denominator);
+        continue;
+      }
+      if (line.startsWith("\\times", position)) {
+        markup += "×";
+        position += "\\times".length;
+        continue;
+      }
+      if (line.startsWith("^{", position)) {
+        position += 1;
+        const content = parseGroup();
+        markup += content === null ? "^" : powerTemplate(content);
+        continue;
+      }
+      markup += escapeHtml(line[position]);
+      position += 1;
+    }
+    return markup;
+  };
+  return parseSequence(false);
+};
 
 const makeTemplate = (kind: Template) => {
   const node = document.createElement("span");
-  node.className = kind === "fraction" ? "inline-flex shrink-0 flex-col justify-center align-middle mx-[.17em] -translate-y-[.04em] text-center leading-none" : kind === "power" ? "inline-flex shrink-0 align-super mx-[.08em] text-[.72em]" : "inline-flex shrink-0 items-start align-middle mx-[.08em]";
+  node.className = kind === "fraction" ? fractionClass : kind === "power" ? powerClass : rootClass;
   node.dataset.math = kind;
-  if (kind === "root") node.innerHTML = '<span class="inline-block -mr-[.18em] min-h-[1.35em] w-[.9em] font-serif text-[1.65em]/[.82]" data-radical="true" contenteditable="false" aria-hidden="true">√</span><span class="inline-block min-h-[1.35em] min-w-[1.2em] border-t-[1.5px] border-current px-[.16em] pl-[.2em] pt-[.02em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="root"></span>';
-  if (kind === "fraction") node.innerHTML = '<span class="inline-block min-h-[1.15em] min-w-[1.1em] border-b-[1.5px] border-current px-[.28em] pb-[.08em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="numerator"></span><span class="inline-block min-h-[1.15em] min-w-[1.1em] px-[.28em] pt-[.08em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="denominator"></span>';
-  if (kind === "power") node.innerHTML = '<span class="inline-block min-h-[1.15em] min-w-[1.1em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="power"></span>';
+  if (kind === "root") node.innerHTML = rootContents("");
+  if (kind === "fraction") node.innerHTML = fractionContents("", "");
+  if (kind === "power") node.innerHTML = powerContents("");
   return node;
 };
 
 const latexFrom = (node: Node): string => {
-  if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? "").split(CARET_ANCHOR).join("");
+  if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? "").split(CARET_ANCHOR).join("").split("×").join("\\times");
   if (!(node instanceof HTMLElement)) return "";
   const slot = (name: string) => {
     const target = node.querySelector(`[data-slot="${name}"]`);
@@ -116,6 +165,13 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
   };
 
   const publish = () => publishRows(rows);
+
+  const insertCleanText = (text: string) => {
+    const cleanText = cleanFormulaText(text);
+    if (!cleanText) return;
+    insertText(cleanText);
+    publish();
+  };
 
   const copySection = async (section: "raw" | "keyboard", text: string) => {
     if (!text) return;
@@ -263,9 +319,33 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>, id: string) => {
     activeRow.current = id;
     activeSlot.current = selectionSlot();
-    if (event.key === "/") {
+    if (event.key === " " || event.key === "Spacebar") {
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "Backspace" || event.key === "Delete") {
+      event.preventDefault();
+      if (deleteWithinScope(event.currentTarget, event.key === "Backspace" ? "backward" : "forward")) publish();
+      return;
+    }
+    if (event.key === "/" || event.key === "÷") {
       event.preventDefault();
       insertFractionFromPreviousTerm();
+      return;
+    }
+    if (event.key === "^") {
+      event.preventDefault();
+      insert("power");
+      return;
+    }
+    if (event.key === "*" || event.key === "×") {
+      event.preventDefault();
+      insertCleanText("×");
+      return;
+    }
+    if (event.key === "+" || event.key === "-" || event.key === ":") {
+      event.preventDefault();
+      insertCleanText(event.key);
       return;
     }
     if (event.key === "End") { event.preventDefault(); placeAtEnd(event.currentTarget); return; }
@@ -282,9 +362,9 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
       if (previousMath) { event.preventDefault(); enterFormula(previousMath, "last"); return; }
     }
     if (event.key === "=") {
+      event.preventDefault();
       const slot = selectionSlot();
       if (slot) {
-        event.preventDefault();
         const math = slot.closest<HTMLElement>("[data-math]");
         if (math) {
           placeAfter(math);
@@ -294,6 +374,8 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
           return;
         }
       }
+      insertCleanText("=");
+      return;
     }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -314,7 +396,17 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
           <span className="hidden text-sm font-medium tracking-tight text-[#8ba0bd] sm:inline">Formula tools</span>
           {rows.length > 1 && <button type="button" className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border-2 border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-3 focus-visible:outline-slate-300 focus-visible:outline-offset-2" onMouseDown={(event) => event.preventDefault()} onClick={() => removeRow(row.id)} aria-label="Remove formula row" title="Remove"><EditorIcon name="remove" /></button>}
         </div>}
-        <div ref={(element) => { if (element) fields.current.set(row.id, element); else fields.current.delete(row.id); }} className="math-input__field min-h-15 overflow-x-auto p-3.5 font-serif text-xl leading-relaxed font-medium whitespace-nowrap outline-none caret-[#4d6f9a] empty:before:pointer-events-none empty:before:text-[1.15rem] empty:before:font-medium empty:before:font-sans empty:before:text-[#8ba0bd] empty:before:content-[attr(data-placeholder)] focus:bg-slate-50 focus:shadow-[inset_3px_0_0_#4d6f9a]" contentEditable={!disabled} suppressContentEditableWarning spellCheck={false} role="textbox" aria-multiline="false" aria-label={`${ariaLabel}, row ${index + 1}`} data-placeholder={index === 0 ? placeholder : "New formula…"} dangerouslySetInnerHTML={{ __html: initialMarkup(row.text) }} onFocus={() => { activeRow.current = row.id; setActiveRowId(row.id); activeSlot.current = selectionSlot(); }} onInput={() => { activeSlot.current = selectionSlot(); publish(); }} onKeyDown={(event) => onKeyDown(event, row.id)} onKeyUp={() => { activeSlot.current = selectionSlot(); }} onMouseDown={(event) => {
+        <div ref={(element) => { if (element) fields.current.set(row.id, element); else fields.current.delete(row.id); }} className="math-input__field min-h-15 overflow-x-auto p-3.5 font-serif text-xl leading-relaxed font-medium whitespace-nowrap outline-none caret-[#4d6f9a] empty:before:pointer-events-none empty:before:text-[1.15rem] empty:before:font-medium empty:before:font-sans empty:before:text-[#8ba0bd] empty:before:content-[attr(data-placeholder)] focus:bg-slate-50 focus:shadow-[inset_3px_0_0_#4d6f9a]" contentEditable={!disabled} suppressContentEditableWarning spellCheck={false} role="textbox" aria-multiline="false" aria-label={`${ariaLabel}, row ${index + 1}`} data-placeholder={index === 0 ? placeholder : "New formula…"} dangerouslySetInnerHTML={{ __html: initialMarkup(row.text) }} onFocus={() => { activeRow.current = row.id; setActiveRowId(row.id); activeSlot.current = selectionSlot(); }} onInput={(event) => { normalizeFormulaDom(event.currentTarget); activeSlot.current = selectionSlot(); publish(); }} onBeforeInput={(event) => {
+          const incomingText = event.nativeEvent.data;
+          const cleanText = incomingText ? cleanFormulaText(incomingText) : "";
+          if (incomingText && cleanText !== incomingText) {
+            event.preventDefault();
+            insertCleanText(cleanText);
+          }
+        }} onPaste={(event) => {
+          event.preventDefault();
+          insertCleanText(event.clipboardData.getData("text"));
+        }} onKeyDown={(event) => onKeyDown(event, row.id)} onKeyUp={() => { activeSlot.current = selectionSlot(); }} onMouseDown={(event) => {
           const target = event.target instanceof Element ? event.target : null;
           const slot = target?.closest<HTMLElement>("[data-slot]");
           const formula = formulaAtPointer(event.currentTarget, event.clientX, event.clientY);
@@ -436,6 +528,112 @@ function selectRange(range: Range, target: HTMLElement) {
   selection?.removeAllRanges();
   selection?.addRange(range);
 }
+function deleteWithinScope(field: HTMLElement, direction: "backward" | "forward") {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return false;
+  const range = selection.getRangeAt(0);
+  const scope = selectionSlot() ?? field;
+  if (!nodeIsInside(scope, range.startContainer) || !nodeIsInside(scope, range.endContainer)) return false;
+
+  if (!range.collapsed) {
+    range.deleteContents();
+    range.collapse(true);
+    selectRange(range, scope);
+    return true;
+  }
+
+  const formula = scope.closest<HTMLElement>("[data-math]");
+  if (formula && formulaIsEmpty(formula)) return removeFormula(formula);
+
+  const directText = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer as Text : null;
+  if (directText) {
+    const visibleStart = directText.data.startsWith(CARET_ANCHOR) ? CARET_ANCHOR.length : 0;
+    const index = direction === "backward" ? range.startOffset - 1 : range.startOffset;
+    if (index >= visibleStart && index < directText.length) return deleteTextCharacter(directText, index);
+  }
+
+  const adjacent = adjacentDeletionUnit(scope, range, direction);
+  if (!adjacent) return false;
+  if (adjacent instanceof HTMLElement && adjacent.dataset.math) return removeFormula(adjacent);
+  if (adjacent.nodeType !== Node.TEXT_NODE) return false;
+  const text = adjacent as Text;
+  const visibleStart = text.data.startsWith(CARET_ANCHOR) ? CARET_ANCHOR.length : 0;
+  const index = direction === "backward" ? text.length - 1 : visibleStart;
+  return index >= visibleStart && index < text.length ? deleteTextCharacter(text, index) : false;
+}
+function nodeIsInside(container: HTMLElement, node: Node) { return node === container || container.contains(node); }
+function formulaIsEmpty(formula: HTMLElement) { return directSlots(formula).every((slot) => deletionUnits(slot).length === 0); }
+function deletionUnits(scope: HTMLElement) {
+  const units: Node[] = [];
+  const visit = (node: Node) => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child instanceof HTMLElement && child.dataset.math) { units.push(child); continue; }
+      if (child.nodeType === Node.TEXT_NODE) {
+        const text = child.textContent ?? "";
+        if (text.slice(text.startsWith(CARET_ANCHOR) ? CARET_ANCHOR.length : 0)) units.push(child);
+        continue;
+      }
+      visit(child);
+    }
+  };
+  visit(scope);
+  return units;
+}
+function adjacentDeletionUnit(scope: HTMLElement, caret: Range, direction: "backward" | "forward") {
+  let closest: Node | null = null;
+  for (const unit of deletionUnits(scope)) {
+    const unitRange = document.createRange();
+    unitRange.selectNode(unit);
+    const comparison = direction === "backward"
+      ? unitRange.compareBoundaryPoints(Range.END_TO_START, caret)
+      : unitRange.compareBoundaryPoints(Range.START_TO_END, caret);
+    if (direction === "backward" && comparison <= 0) closest = unit;
+    if (direction === "forward" && comparison >= 0) return unit;
+  }
+  return closest;
+}
+function deleteTextCharacter(text: Text, index: number) {
+  const parent = text.parentNode;
+  if (!parent) return false;
+  const parentOffset = Array.prototype.indexOf.call(parent.childNodes, text);
+  text.deleteData(index, 1);
+  const range = document.createRange();
+  if (text.length === 0) {
+    text.remove();
+    range.setStart(parent, parentOffset);
+  } else range.setStart(text, index);
+  range.collapse(true);
+  selectRange(range, parent instanceof HTMLElement ? parent : text.parentElement ?? document.body);
+  return true;
+}
+function removeFormula(formula: HTMLElement) {
+  const parent = formula.parentNode;
+  if (!parent) return false;
+  const parentOffset = Array.prototype.indexOf.call(parent.childNodes, formula);
+  const next = formula.nextSibling;
+  formula.remove();
+  if (next?.nodeType === Node.TEXT_NODE && next.textContent?.startsWith(CARET_ANCHOR)) {
+    const text = next as Text;
+    const remainingText = text.data.slice(CARET_ANCHOR.length);
+    if (remainingText) text.data = remainingText;
+    else text.remove();
+  }
+  const range = document.createRange();
+  range.setStart(parent, Math.min(parentOffset, parent.childNodes.length));
+  range.collapse(true);
+  selectRange(range, parent instanceof HTMLElement ? parent : formula.parentElement ?? document.body);
+  return true;
+}
+function normalizeFormulaDom(field: HTMLElement) {
+  const walker = document.createTreeWalker(field, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) textNodes.push(node as Text);
+  for (const text of textNodes) {
+    const prefix = text.data.startsWith(CARET_ANCHOR) ? CARET_ANCHOR : "";
+    const normalized = cleanFormulaText(text.data.slice(prefix.length));
+    if (text.data !== `${prefix}${normalized}`) text.data = `${prefix}${normalized}`;
+  }
+}
 function insertText(text: string) {
   const selection = window.getSelection();
   if (!selection?.rangeCount) return;
@@ -443,7 +641,7 @@ function insertText(text: string) {
   range.deleteContents();
   const textNode = document.createTextNode(text);
   range.insertNode(textNode);
-  range.setStartAfter(textNode);
+  range.setStart(textNode, textNode.length);
   range.collapse(true);
   selection.removeAllRanges();
   selection.addRange(range);
