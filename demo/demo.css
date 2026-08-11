@@ -1,3 +1,195 @@
-@import "tailwindcss";
+:root {
+  color: #1f2c46;
+  background: #edf2f8;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
 
-@layer base { * { box-sizing: border-box; } body { margin: 0; min-width: 320px; background: #f7f8fb; color: #19263d; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } }
+* { box-sizing: border-box; }
+
+body {
+  min-width: 320px;
+  margin: 0;
+}
+
+button,
+input { font: inherit; }
+
+button { cursor: pointer; }
+
+.demo-shell {
+  min-height: 100vh;
+  padding: clamp(1.25rem, 4vw, 4rem);
+  background:
+    linear-gradient(90deg, rgb(125 148 180 / 10%) 1px, transparent 1px) 0 0 / 2rem 2rem,
+    linear-gradient(0deg, rgb(125 148 180 / 10%) 1px, transparent 1px) 0 0 / 2rem 2rem,
+    #edf2f8;
+}
+
+.demo-header,
+.demo-layout {
+  width: min(100%, 90rem);
+  margin: 0 auto;
+}
+
+.demo-header {
+  max-width: 54rem;
+  margin-bottom: clamp(2rem, 6vw, 5rem);
+}
+
+.demo-eyebrow,
+.demo-customizer-heading p,
+.demo-canvas-heading p {
+  margin: 0;
+  color: #587093;
+  font: 700 0.72rem/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.demo-header h1 {
+  max-width: 48rem;
+  margin: 0.7rem 0 1rem;
+  color: #1d2a43;
+  font: 650 clamp(2.5rem, 7vw, 5.6rem)/0.95 Georgia, "Times New Roman", serif;
+  letter-spacing: -0.065em;
+}
+
+.demo-header > p:last-child {
+  max-width: 42rem;
+  margin: 0;
+  color: #556b8d;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.6;
+}
+
+.demo-layout {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.33fr) minmax(0, 1fr);
+  gap: clamp(1.25rem, 3vw, 3rem);
+  align-items: start;
+}
+
+.demo-customizer,
+.demo-canvas {
+  border: 1px solid #ced9e8;
+  box-shadow: 0 1.5rem 3.5rem rgb(44 65 102 / 9%);
+}
+
+.demo-customizer {
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 86%);
+  backdrop-filter: blur(12px);
+}
+
+.demo-customizer-heading,
+.demo-color-input,
+.demo-range-input,
+.demo-canvas-heading {
+  display: flex;
+  align-items: center;
+}
+
+.demo-customizer-heading {
+  justify-content: space-between;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #dce5f0;
+}
+
+.demo-customizer-heading button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #476b9c;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.demo-customizer-heading button:hover { color: #1e3659; }
+
+.demo-control {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #e3eaf3;
+  color: #344b70;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.demo-control:last-child { border-bottom: 0; }
+
+.demo-range-input { gap: 0.75rem; }
+
+.demo-range-input input {
+  width: 100%;
+  accent-color: #4d6f9a;
+}
+
+.demo-range-input output,
+.demo-color-input output,
+.demo-canvas-heading code {
+  color: #607796;
+  font: 0.72rem/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.demo-range-input output {
+  min-width: 2.25rem;
+  text-align: right;
+}
+
+.demo-color-input {
+  justify-content: space-between;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid #d6e0ed;
+  border-radius: 0.5rem;
+  background: #f9fbfe;
+}
+
+.demo-color-input input {
+  width: 1.7rem;
+  height: 1.35rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.demo-canvas {
+  min-width: 0;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  border-radius: 1.5rem;
+  background: #fff;
+}
+
+.demo-canvas-heading {
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.demo-canvas-heading span {
+  display: block;
+  margin-top: 0.35rem;
+  color: #7184a0;
+  font-size: 0.85rem;
+}
+
+.demo-canvas-heading code {
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.375rem;
+  background: #f0f4f9;
+}
+
+.demo-math-input { max-width: none; }
+
+@media (max-width: 780px) {
+  .demo-layout { grid-template-columns: 1fr; }
+  .demo-customizer { order: 2; }
+}
+
+@media (max-width: 520px) {
+  .demo-shell { padding: 1rem; }
+  .demo-header { margin-bottom: 2rem; }
+  .demo-canvas { padding: 1rem; }
+  .demo-canvas-heading { align-items: flex-start; flex-direction: column; }
+}

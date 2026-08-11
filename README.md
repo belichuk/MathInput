@@ -84,3 +84,33 @@ Both values can be copied with their respective Copy buttons.
 
 - `src/` contains the reusable `MathInput` component and its public exports.
 - `demo/` contains the Vite entry point, global demo styles, and the example page.
+
+## Styling and CSS variables
+
+MathInput has no Tailwind dependency. It imports a small plain-CSS stylesheet and exposes its visual contract as CSS custom properties on the component root. Set them with a wrapper class or the component’s `style` prop:
+
+```tsx
+import type { CSSProperties } from "react";
+
+const fieldStyle = {
+  "--math-input-radius": "24px",
+  "--math-input-border-color": "#6750a4",
+  "--math-input-accent-color": "#6750a4",
+  "--math-input-surface": "#fefbff",
+  "--math-input-color": "#1d192b",
+  "--math-input-field-padding": "18px",
+} as CSSProperties;
+
+<MathInput style={fieldStyle} />;
+```
+
+| Variable | Controls |
+| --- | --- |
+| `--math-input-radius` | Editor and panel corner radius. |
+| `--math-input-border-color`, `--math-input-border-width` | Main field border. |
+| `--math-input-surface`, `--math-input-subtle-surface` | Field and supporting-panel backgrounds. |
+| `--math-input-color`, `--math-input-placeholder-color`, `--math-input-muted-color` | Formula, placeholder, and supporting text colors. |
+| `--math-input-accent-color`, `--math-input-accent-soft-color` | Caret, focus state, and active treatments. |
+| `--math-input-control-color`, `--math-input-control-hover-color` | Formula tool colors. |
+| `--math-input-field-padding`, `--math-input-field-min-height`, `--math-input-field-font-size` | Field spacing and scale. |
+| `--math-input-font-family`, `--math-input-math-font-family` | Utility and mathematical typography. |
