@@ -15,6 +15,7 @@ export type MathInputProps = {
 type Template = "root" | "fraction" | "power";
 type Row = { id: string; text: string };
 type EditorIconName = "root" | "fraction" | "power" | "newLine" | "remove";
+const CARET_ANCHOR = "\u200A";
 
 function EditorIcon({ name }: { name: EditorIconName }) {
   const glyph = {
@@ -30,9 +31,9 @@ function EditorIcon({ name }: { name: EditorIconName }) {
 
 const escapeHtml = (text: string) => text.replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[char]!);
 const initialMarkup = (line: string) => escapeHtml(line)
-  .replace(/\\sqrt\{([^}]*)\}/g, '<span class="inline-flex shrink-0 items-start align-middle mx-[.08em]" data-math="root"><span class="inline-block -mr-[.18em] min-h-[1.35em] w-[.9em] font-serif text-[1.65em]/[.82]" data-radical="true" contenteditable="false" aria-hidden="true">√</span><span class="inline-block min-h-[1.35em] min-w-[1.2em] border-t-[1.5px] border-current px-[.16em] pl-[.2em] pt-[.02em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="root">$1</span></span>')
-  .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '<span class="inline-flex shrink-0 flex-col justify-center align-middle mx-[.17em] -translate-y-[.04em] text-center leading-none" data-math="fraction"><span class="inline-block min-h-[1.15em] min-w-[1.1em] border-b-[1.5px] border-current px-[.28em] pb-[.08em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="numerator">$1</span><span class="inline-block min-h-[1.15em] min-w-[1.1em] px-[.28em] pt-[.08em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="denominator">$2</span></span>')
-  .replace(/\^\{([^}]*)\}/g, '<span class="inline-flex shrink-0 align-super mx-[.08em] text-[.72em]" data-math="power"><span class="inline-block min-h-[1.15em] min-w-[1.1em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="power">$1</span></span>');
+  .replace(/\\sqrt\{([^}]*)\}/g, `<span class="inline-flex shrink-0 items-start align-middle mx-[.08em]" data-math="root"><span class="inline-block -mr-[.18em] min-h-[1.35em] w-[.9em] font-serif text-[1.65em]/[.82]" data-radical="true" contenteditable="false" aria-hidden="true">√</span><span class="inline-block min-h-[1.35em] min-w-[1.2em] border-t-[1.5px] border-current px-[.16em] pl-[.2em] pt-[.02em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="root">$1</span></span>${CARET_ANCHOR}`)
+  .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, `<span class="inline-flex shrink-0 flex-col justify-center align-middle mx-[.17em] -translate-y-[.04em] text-center leading-none" data-math="fraction"><span class="inline-block min-h-[1.15em] min-w-[1.1em] border-b-[1.5px] border-current px-[.28em] pb-[.08em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="numerator">$1</span><span class="inline-block min-h-[1.15em] min-w-[1.1em] px-[.28em] pt-[.08em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="denominator">$2</span></span>${CARET_ANCHOR}`)
+  .replace(/\^\{([^}]*)\}/g, `<span class="inline-flex shrink-0 align-super mx-[.08em] text-[.72em]" data-math="power"><span class="inline-block min-h-[1.15em] min-w-[1.1em] outline-none empty:after:inline-block empty:after:w-[.5em] empty:after:border-b empty:after:border-dotted empty:after:border-slate-400 focus:bg-orange-100 focus:outline focus:outline-1 focus:outline-amber-600" data-slot="power">$1</span></span>${CARET_ANCHOR}`);
 
 const makeTemplate = (kind: Template) => {
   const node = document.createElement("span");
@@ -45,7 +46,7 @@ const makeTemplate = (kind: Template) => {
 };
 
 const latexFrom = (node: Node): string => {
-  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
+  if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? "").split(CARET_ANCHOR).join("");
   if (!(node instanceof HTMLElement)) return "";
   const slot = (name: string) => {
     const target = node.querySelector(`[data-slot="${name}"]`);
@@ -81,7 +82,9 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
   const activeSlot = useRef<HTMLElement | null>(null);
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
   const [keyboardLog, setKeyboardLog] = useState<string[]>([]);
+  const [copiedSection, setCopiedSection] = useState<"raw" | "keyboard" | null>(null);
   const focusAfterAdd = useRef<string | null>(null);
+  const copyFeedbackTimer = useRef<number | null>(null);
   const lastExternal = useRef(value);
   const labelId = useId();
 
@@ -98,6 +101,10 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     if (field) { focusAfterAdd.current = null; placeAtEnd(field); }
   }, [rows]);
 
+  useEffect(() => () => {
+    if (copyFeedbackTimer.current !== null) window.clearTimeout(copyFeedbackTimer.current);
+  }, []);
+
   const publishRows = (nextRows: Row[]) => {
     const next = nextRows.map(({ id, text }) => {
       const field = fields.current.get(id);
@@ -110,6 +117,29 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
 
   const publish = () => publishRows(rows);
 
+  const copySection = async (section: "raw" | "keyboard", text: string) => {
+    if (!text) return;
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+      else {
+        const clipboardFallback = document.createElement("textarea");
+        clipboardFallback.value = text;
+        clipboardFallback.style.position = "fixed";
+        clipboardFallback.style.opacity = "0";
+        document.body.append(clipboardFallback);
+        clipboardFallback.select();
+        const didCopy = document.execCommand("copy");
+        clipboardFallback.remove();
+        if (!didCopy) return;
+      }
+      setCopiedSection(section);
+      if (copyFeedbackTimer.current !== null) window.clearTimeout(copyFeedbackTimer.current);
+      copyFeedbackTimer.current = window.setTimeout(() => setCopiedSection(null), 1600);
+    } catch {
+      setCopiedSection(null);
+    }
+  };
+
   const currentField = () => fields.current.get(activeRow.current ?? rows[0]?.id);
   const insert = (kind: Template) => {
     const field = currentField();
@@ -119,6 +149,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
     const node = makeTemplate(kind);
     if (range && field.contains(range.commonAncestorContainer)) { range.deleteContents(); range.insertNode(node); } else field.append(node);
+    ensureCaretAnchor(node);
     const slot = node.querySelector<HTMLElement>("[data-slot]")!;
     activeSlot.current = slot;
     placeAtEnd(slot);
@@ -163,6 +194,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
         replaceRange.setEnd(textNode, caretOffset);
         replaceRange.deleteContents();
         replaceRange.insertNode(fraction);
+        ensureCaretAnchor(fraction);
         numerator.textContent = previousTerm;
         activeSlot.current = denominator;
         placeAtEnd(denominator);
@@ -270,6 +302,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
   };
 
   const buttonClass = "inline-flex h-10 w-10 items-center justify-center rounded-lg border-2 border-slate-200 bg-white text-[#506887] hover:border-[#9db2cc] hover:bg-slate-50 hover:text-[#2f4c70] focus-visible:outline-3 focus-visible:outline-[#b7c9df] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45";
+  const copyButtonClass = "inline-flex h-7 items-center justify-center rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-[#526b8a] hover:border-[#b7c9df] hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-[#b7c9df] focus-visible:outline-offset-1 disabled:cursor-not-allowed disabled:opacity-40";
   return <div className={`w-full max-w-3xl text-[#263956] font-mono ${className}`.trim()} style={style} onKeyDownCapture={(event) => setKeyboardLog((keys) => [...keys, event.key])}>
     <div className="overflow-hidden rounded-2xl border-2 border-[#647895] bg-white" aria-labelledby={labelId}>
       <span id={labelId} className="sr-only">{ariaLabel}</span>
@@ -281,21 +314,50 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
           <span className="hidden text-sm font-medium tracking-tight text-[#8ba0bd] sm:inline">Formula tools</span>
           {rows.length > 1 && <button type="button" className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border-2 border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-3 focus-visible:outline-slate-300 focus-visible:outline-offset-2" onMouseDown={(event) => event.preventDefault()} onClick={() => removeRow(row.id)} aria-label="Remove formula row" title="Remove"><EditorIcon name="remove" /></button>}
         </div>}
-        <div ref={(element) => { if (element) fields.current.set(row.id, element); else fields.current.delete(row.id); }} className="math-input__field min-h-15 overflow-x-auto p-3.5 font-serif text-xl leading-relaxed font-medium whitespace-nowrap outline-none caret-[#4d6f9a] empty:before:pointer-events-none empty:before:text-[1.15rem] empty:before:font-medium empty:before:font-sans empty:before:text-[#8ba0bd] empty:before:content-[attr(data-placeholder)] focus:bg-slate-50 focus:shadow-[inset_3px_0_0_#4d6f9a]" contentEditable={!disabled} suppressContentEditableWarning spellCheck={false} role="textbox" aria-multiline="false" aria-label={`${ariaLabel}, row ${index + 1}`} data-placeholder={index === 0 ? placeholder : "New formula…"} dangerouslySetInnerHTML={{ __html: initialMarkup(row.text) }} onFocus={() => { activeRow.current = row.id; setActiveRowId(row.id); activeSlot.current = selectionSlot(); }} onInput={() => { activeSlot.current = selectionSlot(); publish(); }} onKeyDown={(event) => onKeyDown(event, row.id)} onKeyUp={() => { activeSlot.current = selectionSlot(); }} onClick={(event) => { const target = event.target as HTMLElement; const radical = target.closest("[data-radical='true']"); if (radical) { const slot = radical.parentElement!.querySelector<HTMLElement>("[data-slot]")!; activeSlot.current = slot; placeAtEnd(slot); return; } const math = target.closest<HTMLElement>("[data-math]"); if (math && event.clientX >= math.getBoundingClientRect().right - 8) { activeSlot.current = null; placeAfter(math); return; } if (target === event.currentTarget) { activeSlot.current = null; placeAtEnd(event.currentTarget); } }} />
+        <div ref={(element) => { if (element) fields.current.set(row.id, element); else fields.current.delete(row.id); }} className="math-input__field min-h-15 overflow-x-auto p-3.5 font-serif text-xl leading-relaxed font-medium whitespace-nowrap outline-none caret-[#4d6f9a] empty:before:pointer-events-none empty:before:text-[1.15rem] empty:before:font-medium empty:before:font-sans empty:before:text-[#8ba0bd] empty:before:content-[attr(data-placeholder)] focus:bg-slate-50 focus:shadow-[inset_3px_0_0_#4d6f9a]" contentEditable={!disabled} suppressContentEditableWarning spellCheck={false} role="textbox" aria-multiline="false" aria-label={`${ariaLabel}, row ${index + 1}`} data-placeholder={index === 0 ? placeholder : "New formula…"} dangerouslySetInnerHTML={{ __html: initialMarkup(row.text) }} onFocus={() => { activeRow.current = row.id; setActiveRowId(row.id); activeSlot.current = selectionSlot(); }} onInput={() => { activeSlot.current = selectionSlot(); publish(); }} onKeyDown={(event) => onKeyDown(event, row.id)} onKeyUp={() => { activeSlot.current = selectionSlot(); }} onMouseDown={(event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          const slot = target?.closest<HTMLElement>("[data-slot]");
+          const formula = formulaAtPointer(event.currentTarget, event.clientX, event.clientY);
+          if (formula && event.clientX >= formula.getBoundingClientRect().right) {
+            event.preventDefault();
+            activeSlot.current = null;
+            placeAfter(formula);
+            return;
+          }
+          if (slot) {
+            event.preventDefault();
+            placeAtPointer(slot, event.clientX, event.clientY);
+            activeSlot.current = slot;
+            return;
+          }
+          if (!formula) return;
+          event.preventDefault();
+          const closestSlot = directSlots(formula).sort((first, second) => pointerDistance(first, event.clientX, event.clientY) - pointerDistance(second, event.clientX, event.clientY))[0];
+          if (closestSlot) {
+            placeAtPointer(closestSlot, event.clientX, event.clientY);
+            activeSlot.current = closestSlot;
+          }
+        }} onClick={() => { activeSlot.current = selectionSlot(); }} />
         {activeRowId === row.id && <button type="button" className="absolute right-3 bottom-3 inline-flex h-9 w-9 items-center justify-center rounded-lg border-2 border-slate-200 bg-white text-[#426487] hover:border-[#9db2cc] hover:bg-slate-50 focus-visible:outline-3 focus-visible:outline-[#b7c9df] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45" onMouseDown={(event) => event.preventDefault()} onClick={createRow} disabled={disabled} aria-label="Add new formula row" title="New line"><EditorIcon name="newLine" /></button>}
       </div>)}
     </div>
     <section className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3" aria-label="Raw value">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xs font-semibold tracking-wide text-slate-600">Raw value</h2>
-        <span className="text-xs text-slate-400">KaTeX source</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400">KaTeX source</span>
+          <button type="button" className={copyButtonClass} onClick={() => void copySection("raw", rawValue)} disabled={!rawValue} aria-label="Copy raw value">{copiedSection === "raw" ? "Copied" : "Copy"}</button>
+        </div>
       </div>
       <pre className="mt-2 max-h-36 overflow-auto rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs leading-relaxed text-[#526b8a]"><code>{rawValue || "The KaTeX value will appear as you type."}</code></pre>
     </section>
     <section className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3" aria-label="Keyboard log" aria-live="polite">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xs font-semibold tracking-wide text-slate-600">Keyboard log</h2>
-        <span className="text-xs text-slate-400">{keyboardLog.length} keys</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400">{keyboardLog.length} keys</span>
+          <button type="button" className={copyButtonClass} onClick={() => void copySection("keyboard", keyboardLog.map(formatKey).join(" "))} disabled={keyboardLog.length === 0} aria-label="Copy keyboard log">{copiedSection === "keyboard" ? "Copied" : "Copy"}</button>
+        </div>
       </div>
       <div className="mt-2 flex max-h-36 flex-wrap gap-1.5 overflow-y-auto">
         {keyboardLog.length > 0 ? keyboardLog.map((key, index) => <kbd key={`${key}-${index}`} className="rounded-md border border-slate-200 bg-white px-2 py-1 font-mono text-xs font-medium text-[#526b8a] shadow-sm">{formatKey(key)}</kbd>) : <p className="text-xs text-slate-400">Keys pressed in this editor will appear here.</p>}
@@ -305,10 +367,75 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
   </div>;
 }
 
-function placeAtEnd(element: HTMLElement) { const range = document.createRange(); range.selectNodeContents(element); range.collapse(false); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); element.focus(); }
-function placeAtStart(element: HTMLElement) { const range = document.createRange(); range.selectNodeContents(element); range.collapse(true); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); element.focus(); }
-function placeBefore(element: HTMLElement) { const range = document.createRange(); range.setStartBefore(element); range.collapse(true); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); element.closest<HTMLElement>(".math-input__field")?.focus(); }
-function placeAfter(element: HTMLElement) { const range = document.createRange(); range.setStartAfter(element); range.collapse(true); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); element.closest<HTMLElement>(".math-input__field")?.focus(); }
+function placeAtEnd(element: HTMLElement) {
+  const range = document.createRange();
+  const lastChild = element.lastChild;
+  if (lastChild?.nodeType === Node.TEXT_NODE && lastChild.textContent?.startsWith(CARET_ANCHOR)) range.setStart(lastChild, lastChild.textContent.length);
+  else { range.selectNodeContents(element); range.collapse(false); }
+  range.collapse(true);
+  selectRange(range, element);
+}
+function placeAtStart(element: HTMLElement) { const range = document.createRange(); range.selectNodeContents(element); range.collapse(true); selectRange(range, element); }
+function placeBefore(element: HTMLElement) { const range = document.createRange(); range.setStartBefore(element); range.collapse(true); selectRange(range, element); }
+function ensureCaretAnchor(element: HTMLElement) {
+  const next = element.nextSibling;
+  if (next?.nodeType === Node.TEXT_NODE && next.textContent?.startsWith(CARET_ANCHOR)) {
+    const anchor = next as Text;
+    if (anchor.length > CARET_ANCHOR.length) anchor.splitText(CARET_ANCHOR.length);
+    return anchor;
+  }
+  const anchor = document.createTextNode(CARET_ANCHOR);
+  element.parentNode?.insertBefore(anchor, next);
+  return anchor;
+}
+function placeAfter(element: HTMLElement) {
+  const anchor = ensureCaretAnchor(element);
+  const range = document.createRange();
+  range.setStart(anchor, anchor.length);
+  range.collapse(true);
+  selectRange(range, element);
+}
+function placeAtPointer(element: HTMLElement, clientX: number, clientY: number) {
+  const positionedDocument = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => CaretPosition | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+  const caretRange = positionedDocument.caretRangeFromPoint?.(clientX, clientY) ?? (() => {
+    const position = positionedDocument.caretPositionFromPoint?.(clientX, clientY);
+    if (!position) return null;
+    const range = document.createRange();
+    range.setStart(position.offsetNode, position.offset);
+    range.collapse(true);
+    return range;
+  })();
+
+  if (caretRange && (caretRange.startContainer === element || element.contains(caretRange.startContainer))) {
+    selectRange(caretRange, element);
+    return;
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(clientX >= element.getBoundingClientRect().left + element.getBoundingClientRect().width / 2);
+  selectRange(range, element);
+}
+function formulaAtPointer(field: HTMLElement, clientX: number, clientY: number) {
+  return Array.from(field.children).find((child): child is HTMLElement => {
+    if (!(child instanceof HTMLElement) || !child.dataset.math) return false;
+    const rect = child.getBoundingClientRect();
+    return clientX >= rect.left - 2 && clientX <= rect.right + 12 && clientY >= rect.top - 4 && clientY <= rect.bottom + 4;
+  }) ?? null;
+}
+function pointerDistance(element: HTMLElement, clientX: number, clientY: number) {
+  const rect = element.getBoundingClientRect();
+  return Math.hypot(clientX - (rect.left + rect.width / 2), clientY - (rect.top + rect.height / 2));
+}
+function selectRange(range: Range, target: HTMLElement) {
+  const selection = window.getSelection();
+  target.closest<HTMLElement>(".math-input__field")?.focus();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
 function insertText(text: string) {
   const selection = window.getSelection();
   if (!selection?.rangeCount) return;
@@ -329,7 +456,7 @@ function adjacentMath(direction: "before" | "after") {
   if (!focus) return null;
   const offset = selection.focusOffset;
   const candidate = focus.nodeType === Node.TEXT_NODE
-    ? direction === "before" && offset === 0 ? focus.previousSibling : direction === "after" && offset === (focus.textContent?.length ?? 0) ? focus.nextSibling : null
+    ? focus.textContent === CARET_ANCHOR ? direction === "before" ? focus.previousSibling : focus.nextSibling : direction === "before" && offset === 0 ? focus.previousSibling : direction === "after" && offset === (focus.textContent?.length ?? 0) ? focus.nextSibling : null
     : direction === "before" ? focus.childNodes[offset - 1] : focus.childNodes[offset];
   return candidate instanceof HTMLElement && candidate.dataset.math ? candidate : null;
 }
