@@ -615,7 +615,7 @@ function caretAtBoundary(element: HTMLElement, boundary: "start" | "end") {
     probe.setStart(caret.startContainer, caret.startOffset);
     probe.setEnd(element, element.childNodes.length);
   }
-  return probe.cloneContents().childNodes.length === 0;
+  return probe.toString().length === 0;
 }
 function caretAtStart(element: HTMLElement) { return caretAtBoundary(element, "start"); }
 function caretAtEnd(element: HTMLElement) { return caretAtBoundary(element, "end"); }
