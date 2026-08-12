@@ -93,7 +93,6 @@ export function AnswerField() {
     <header className="demo-header">
       <p className="demo-eyebrow">MathInput / style laboratory</p>
       <h1>A field that lets you type math.</h1>
-      <p>Change the tokens on the left. The editor keeps its behavior while inheriting your border, color, radius, and spacing decisions.</p>
     </header>
 
     <div className="demo-layout">
