@@ -607,10 +607,15 @@ function caretAtBoundary(element: HTMLElement, boundary: "start" | "end") {
   if (!selection?.rangeCount || !selection.isCollapsed) return false;
   const caret = selection.getRangeAt(0);
   if (!(element.contains(caret.startContainer) || caret.startContainer === element)) return false;
-  const end = document.createRange();
-  end.selectNodeContents(element);
-  end.collapse(boundary === "start");
-  return caret.compareBoundaryPoints(boundary === "start" ? Range.START_TO_START : Range.END_TO_END, end) === 0;
+  const probe = document.createRange();
+  if (boundary === "start") {
+    probe.setStart(element, 0);
+    probe.setEnd(caret.startContainer, caret.startOffset);
+  } else {
+    probe.setStart(caret.startContainer, caret.startOffset);
+    probe.setEnd(element, element.childNodes.length);
+  }
+  return probe.cloneContents().childNodes.length === 0;
 }
 function caretAtStart(element: HTMLElement) { return caretAtBoundary(element, "start"); }
 function caretAtEnd(element: HTMLElement) { return caretAtBoundary(element, "end"); }
