@@ -1,24 +1,70 @@
 {
-  "name": "MathInput",
-  "private": true,
+  "name": "@belichuk/math-input",
   "version": "0.2.0",
+  "description": "A dependency-free React editor for entering mathematical working, emitting KaTeX-compatible LaTeX.",
+  "license": "MIT",
+  "author": "Nikolay Belichuk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/belichuk/MathInput.git"
+  },
+  "homepage": "https://github.com/belichuk/MathInput#readme",
+  "bugs": "https://github.com/belichuk/MathInput/issues",
+  "keywords": [
+    "react",
+    "math",
+    "latex",
+    "katex",
+    "formula",
+    "equation",
+    "editor",
+    "input",
+    "contenteditable"
+  ],
   "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "main": "./dist/math-input.cjs",
+  "module": "./dist/math-input.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/math-input.js",
+      "require": "./dist/math-input.cjs"
+    },
+    "./styles.css": "./dist/math-input.css",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json && node scripts/clean-types.mjs",
+    "build:demo": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
   },
-  "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^3.2.7",
     "jsdom": "^27.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "typescript": "^5.5.4",
     "vite": "^8.2.1",
     "vitest": "^3.2.7"

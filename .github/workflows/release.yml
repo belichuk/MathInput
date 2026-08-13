@@ -1,0 +1,81 @@
+name: Release
+
+# A release is cut from a tag: `git tag v0.2.0 && git push origin v0.2.0`.
+# The tag builds the package, publishes it to npm, and opens a GitHub release whose
+# notes are that version's section of CHANGELOG.md — so what changed is written once.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write # npm provenance: proof the package was built by this workflow
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      # A tag that disagrees with package.json would publish one version's work
+      # under another version's name, so it fails here rather than on the release page.
+      - name: Check the tag against package.json
+        run: |
+          tagged="${GITHUB_REF_NAME#v}"
+          declared="$(node -p "require('./package.json').version")"
+          if [ "$tagged" != "$declared" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $declared"
+            exit 1
+          fi
+
+      - name: Test
+        run: npm test
+
+      # The package only. The demo is for looking at and developing against, not shipping.
+      - name: Build the package
+        run: npm run build
+
+      - name: Take the notes out of the changelog
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v version="$version" '
+            $0 ~ "^## " version "( |$)" { inside = 1; next }
+            inside && /^## / { exit }
+            inside { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no section for $version"
+            exit 1
+          fi
+          cat release-notes.md
+
+      # npm first: it is the step that cannot be undone, so a release page never
+      # promises a version that failed to publish. Access and provenance come from
+      # publishConfig, and NPM_TOKEN is an automation token in the repo's secrets.
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A version with a suffix — v1.0.0-rc.1 — is not the one people should land on.
+          prerelease=()
+          case "${GITHUB_REF_NAME#v}" in *-*) prerelease=(--prerelease) ;; esac
+          npm pack
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            "${prerelease[@]}" \
+            ./*.tgz

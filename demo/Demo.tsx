@@ -81,7 +81,8 @@ export function Demo() {
     "--math-input-field-padding": `${theme.padding}px`,
   } as CSSProperties;
   const componentCode = `import type { CSSProperties } from "react";
-import { MathInput } from "./src";
+import { MathInput } from "@belichuk/math-input";
+import "@belichuk/math-input/styles.css";
 
 const fieldStyle = {
   "--math-input-radius": "${theme.radius}px",

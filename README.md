@@ -2,24 +2,23 @@
 
 A dependency-free React + TypeScript editor for entering mathematical working in a familiar, one-line-per-formula layout. It renders fractions, square roots, and powers visually while emitting KaTeX-compatible LaTeX source. It does not evaluate or validate expressions.
 
-## Run the demo
+## Install
 
 ```sh
-npm install
-npm run dev
+npm install @belichuk/math-input
 ```
 
-Create a production build with:
+React 18 or 19 is a peer dependency. The component ships its own stylesheet, which is imported once, wherever suits your app:
 
-```sh
-npm run build
+```ts
+import "@belichuk/math-input/styles.css";
 ```
 
 ## Use the component
 
 ```tsx
 import { useState } from "react";
-import { MathInput } from "./src";
+import { MathInput } from "@belichuk/math-input";
 
 export function Example() {
   const [latex, setLatex] = useState("");
@@ -35,6 +34,17 @@ export function Example() {
 ```
 
 `value` and `onChange` make the editor controlled. Alternatively, pass `defaultValue` for an initial uncontrolled value. Each formula row is returned as a line of LaTeX, separated with `\n`.
+
+## Work on it
+
+```sh
+npm install
+npm run dev     # the demo, at localhost:5173
+npm test
+npm run build   # the package: dist/math-input.js, .cjs, .css and dist/types
+```
+
+The demo is a style laboratory for developing against and for a first look at the component; it is not part of what ships. `npm run build:demo` builds it into `dist-demo/` if you want to host it somewhere.
 
 ## Editing formulas
 
@@ -137,6 +147,19 @@ round-trip property corpus, caret navigation, and each editing behaviour listed 
 Tests also assert the tree's invariant and a valid caret after *every* reduction, so a
 reducer cannot quietly leave the document in a state the rest of the editor assumes away.
 DOM range mapping, pointer targeting and IME are verified in a browser instead.
+
+## Releasing
+
+A release is a tag. Bump `version` in `package.json`, write that version's section of `CHANGELOG.md`, commit, then:
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+`.github/workflows/release.yml` takes it from there: it refuses a tag that disagrees with `package.json` or has no section in the changelog, runs the tests, builds the package, publishes it to npm with provenance, and opens a GitHub release whose notes are that changelog section, with the tarball attached. A version with a suffix — `v1.0.0-rc.1` — is marked a prerelease.
+
+Publishing needs one secret in the repository's settings: `NPM_TOKEN`, an npm **automation** token for an account that can publish under `@belichuk`.
 
 ## Styling and CSS variables
 
