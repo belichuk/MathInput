@@ -34,8 +34,8 @@ export const power = (base = emptyContent(), exponent = emptyContent()): PowerNo
 export const subscript = (base = emptyContent(), sub = emptyContent()): SubscriptNode => ({ type: "subscript", base, subscript: sub });
 export const group = (content = emptyContent()): GroupNode => ({ type: "group", content });
 
-export const isText = (node: FormulaNode | undefined): node is TextNode => node?.type === "text";
-export const isCompound = (node: FormulaNode | undefined): node is CompoundNode => node !== undefined && node.type !== "text";
+export const isText = (node: FormulaNode | null | undefined): node is TextNode => node?.type === "text";
+export const isCompound = (node: FormulaNode | null | undefined): node is CompoundNode => node !== null && node !== undefined && node.type !== "text";
 
 /**
  * Branches in visual left-to-right order — the order arrow navigation walks them.

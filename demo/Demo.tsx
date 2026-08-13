@@ -1,5 +1,6 @@
 import { type CSSProperties, useState } from "react";
 import { MathInput } from "../src";
+import { RenderPreview } from "./RenderPreview";
 
 type FieldTheme = {
   radius: number;
@@ -125,6 +126,8 @@ export function AnswerField() {
           </div>
           <pre><code>{componentCode}</code></pre>
         </section>
+
+        <RenderPreview />
 
         <section className="demo-panels">
           <div className="demo-panel" aria-label="Raw value">
