@@ -153,8 +153,8 @@ DOM range mapping, pointer targeting and IME are verified in a browser instead.
 A release is a tag. Bump `version` in `package.json`, write that version's section of `CHANGELOG.md`, commit, then:
 
 ```sh
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 `.github/workflows/release.yml` takes it from there: it refuses a tag that disagrees with `package.json` or has no section in the changelog, runs the tests, builds the package, publishes it to npm with provenance, and opens a GitHub release whose notes are that changelog section, with the tarball attached. A version with a suffix — `v1.0.0-rc.1` — is marked a prerelease.

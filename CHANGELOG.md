@@ -2,6 +2,26 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
+## 0.3.0 — 2026-08-13
+
+The component becomes a package. It was previously consumed by importing `./src` out of a checkout; it now installs from npm, builds to `dist/` on its own, and is released by pushing a tag.
+
+### Added
+
+- Published as [`@belichuk/math-input`](https://www.npmjs.com/package/@belichuk/math-input). `npm install @belichuk/math-input`, with React 18 or 19 as a peer dependency rather than a dependency of its own.
+- ESM and CommonJS builds with source maps, and type declarations generated from the source rather than written by hand.
+- The stylesheet ships as `@belichuk/math-input/styles.css` and is imported once by the host. A library build extracts CSS instead of injecting it, so nothing is inserted into the page behind the host's back.
+- A release workflow. Pushing a `v*` tag runs the tests, builds the package, publishes it to npm with provenance, and opens a GitHub release whose notes are that version's section of this changelog, with the tarball attached. A tag that disagrees with `package.json`, or that has no section here, fails instead of publishing.
+
+### Changed
+
+- `npm run build` builds the component and nothing else. The demo moved to `npm run build:demo` and `dist-demo/`: it is a style laboratory for developing against and for a first look, and is not part of what ships — `files` is the built package alone.
+- `@vitest/coverage-v8` tracks vitest 3 rather than sitting a major version ahead of it. The mismatch made the lockfile impossible to regenerate, which would have failed `npm ci` on the first release.
+
+### Fixed
+
+- Type declarations no longer carry the component's `import "./MathInput.css"`. It resolved to nothing beside the types and would have surfaced as an error for any consumer not setting `skipLibCheck`.
+
 ## 0.2.0 — 2026-08-13
 
 The editor is rebuilt on a document model. Each row is now a typed formula tree owned by React state, the caret is a plain `{path, offset}` value, and the contentEditable DOM is a rendering of that tree rather than the source of truth. The previous implementation mutated the live DOM directly and reconstructed the LaTeX by walking it, which meant caret questions had to be answered by comparing DOM boundary points — the source of both caret bugs fixed in 0.1.0, and a class of bug the editor can no longer have: "is this the end of the slot?" is now an array index comparison.
