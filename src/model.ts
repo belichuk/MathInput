@@ -130,9 +130,14 @@ export function updateArray(root: FormulaNode[], arrayPath: Path, update: (nodes
   return root.map((current, index) => (index === step.index ? withBranch(node, step.branch!, updateArray(branch, rest, update)) : current));
 }
 
+/** The path of the array holding the node a path points at. */
 export const arrayPathOf = (path: Path): Path => path.slice(0, -1);
 export const stepOf = (path: Path): PathStep => path[path.length - 1] ?? { index: 0 };
 export const positionIn = (arrayPath: Path, index: number, offset: number): CaretPosition => ({ path: [...arrayPath, { index }], offset });
+/** A node's path with `branch` appended to its last step: the address of one of its slots. */
+export const slotPath = (nodePath: Path, branch: BranchKey): Path => [...nodePath.slice(0, -1), { ...stepOf(nodePath), branch }];
+/** The compound node directly enclosing a position, or null when the position is at the top level. */
+export const enclosingNodePath = (path: Path): Path | null => (path.length < 2 ? null : [...path.slice(0, -2), { index: path[path.length - 2].index }]);
 
 /** Document order. Needs the tree because branch ordering is per node type. */
 export function comparePaths(root: FormulaNode[], first: Path, second: Path): number {

@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { type BranchKey, type FormulaNode, type Path, branchesOf, encodePath, isBlank } from "./model";
+import { type BranchKey, type FormulaNode, type Path, branchesOf, encodePath, isBlank, slotPath } from "./model";
 
 /**
  * Renders a formula tree as real JSX. Every element carries a `data-path` holding the
@@ -14,9 +14,6 @@ import { type BranchKey, type FormulaNode, type Path, branchesOf, encodePath, is
  * function of the tree rather than something stitched into a live DOM.
  */
 export const CARET_PLACEHOLDER = "​";
-
-/** A node's own path with `branch` appended to its last step: the address of one of its slots. */
-const slotPath = (path: Path, branch: BranchKey): Path => [...path.slice(0, -1), { ...path[path.length - 1], branch }];
 
 const SLOT_MODIFIER: Record<string, string> = {
   "sqrt:content": "radicand",
