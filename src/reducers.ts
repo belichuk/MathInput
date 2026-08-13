@@ -25,6 +25,8 @@ export type Action =
   | { type: "script"; kind: "power" | "subscript" }
   /** `=` steps out of the innermost formula first, so `10^=2` cannot be typed. */
   | { type: "equals" }
+  /** `)` leaves the brackets it is typed in, rather than adding a stray one. */
+  | { type: "closeGroup" }
   | { type: "delete"; direction: "backward" | "forward" }
   | { type: "move"; direction: "backward" | "forward" }
   | { type: "moveToEdge"; edge: "start" | "end" }
@@ -258,6 +260,13 @@ export function reduce(state: RowState, action: Action): RowState {
       if (nodePath) return insertTextAt(state.content, { path: [...arrayPathOf(nodePath), { index: stepOf(nodePath).index + 1 }], offset: 0 }, "=");
       const { content, caret } = takeSelection(state);
       return insertTextAt(content, caret, "=");
+    }
+    case "closeGroup": {
+      const nodePath = isCollapsed(state.selection) ? enclosingNodePath(state.selection.focus.path) : null;
+      const node = nodePath ? resolveNode(state.content, nodePath) : null;
+      if (nodePath && node?.type === "group") return { content: state.content, selection: collapsedAt({ path: [...arrayPathOf(nodePath), { index: stepOf(nodePath).index + 1 }], offset: 0 }) };
+      const { content, caret } = takeSelection(state);
+      return insertTextAt(content, caret, ")");
     }
     case "delete": return deleteAt(state, action.direction);
     case "move": {

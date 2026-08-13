@@ -140,6 +140,7 @@
 }
 
 .math-input__field {
+  position: relative;
   min-height: var(--math-input-field-min-height);
   padding: var(--math-input-field-padding);
   padding-right: calc(var(--math-input-field-padding) + 3.25rem);
@@ -174,9 +175,14 @@
   background: var(--math-input-control-hover-border);
 }
 
+/* Positioned, not in flow: an empty row still holds the text run the caret lives in,
+   and a block-level placeholder would push it onto a second line. */
 .math-input__field[data-empty]::before {
   content: attr(data-placeholder);
-  display: block;
+  position: absolute;
+  top: var(--math-input-field-padding);
+  left: var(--math-input-field-padding);
+  max-width: calc(100% - 2 * var(--math-input-field-padding));
   overflow: hidden;
   text-overflow: ellipsis;
   pointer-events: none;
@@ -184,6 +190,7 @@
   font-family: var(--math-input-font-family);
   font-size: 1.15rem;
   font-weight: 500;
+  line-height: 1.6;
 }
 
 .math-input__field:focus {

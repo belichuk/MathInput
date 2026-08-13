@@ -1,5 +1,13 @@
-import { type CSSProperties, type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import "./MathInput.css";
+import { type FormulaNode, type SelectionRange, collapsedAt, isBlank, samePosition } from "./model";
+import { rowEnd, rowStart } from "./caret";
+import { type Action, type CompoundKind, type RowState, reduce } from "./reducers";
+import { parseLatex } from "./parse";
+import { serializeToLatex } from "./serialize";
+import { renderNodes } from "./render";
+import { applySelection, positionFromPoint, repairField, scrollCaretIntoView, selectionFromDom } from "./selection";
+import { type History, emptyHistory, record, redo, undo } from "./history";
 
 export type MathInputProps = {
   /** One LaTeX-compatible expression per line. */
@@ -13,338 +21,271 @@ export type MathInputProps = {
   "aria-label"?: string;
 };
 
-type Template = "root" | "fraction" | "power";
-type Row = { id: string; text: string };
-type EditorIconName = "root" | "fraction" | "power" | "newLine" | "remove";
-const CARET_ANCHOR = "\u200A";
+type Row = { id: string; content: FormulaNode[] };
+type Caret = { rowId: string; range: SelectionRange } | null;
+type EditorState = { rows: Row[]; caret: Caret };
+type EditorIconName = CompoundKind | "newLine" | "remove";
+
+const NUMERAL = "M528 432C528 437 526 442 521 445C517 448 512 449 507 447L459 431C451 428 446 419 449 411C452 403 461 398 469 401L496 410V288H464C455 288 448 281 448 272C448 263 455 256 464 256H560C569 256 576 263 576 272C576 281 569 288 560 288H528V432Z";
+const LETTER_X = "M80 384C71 384 64 377 64 368C64 359 71 352 80 352H119L221 192L119 32H80C71 32 64 25 64 16C64 7 71 0 80 0H128C134 0 139 3 142 7L240 162L339 7C341 3 347 0 352 0H400C409 0 416 7 416 16C416 25 409 32 400 32H361L259 192L361 352H400C409 352 416 359 416 368C416 377 409 384 400 384H352C347 384 341 381 339 377L240 222L142 377C139 381 134 384 128 384H80Z";
+const RADICAL = "M352 384C345 384 339 379 337 372L223 -20C222 -27 216 -31 210 -32C203 -33 197 -29 194 -24L83 184C80 189 75 192 69 192H16C7 192 0 199 0 208C0 217 7 224 16 224H69C87 224 103 214 111 199L204 26L306 381C312 402 331 416 352 416H560C569 416 576 409 576 400C576 391 569 384 560 384H352Z";
 
 function EditorIcon({ name }: { name: EditorIconName }) {
   const glyph = {
-    root: { width: 576, path: "M352 384C345 384 339 379 337 372L223 -20C222 -27 216 -31 210 -32C203 -33 197 -29 194 -24L83 184C80 189 75 192 69 192H16C7 192 0 199 0 208C0 217 7 224 16 224H69C87 224 103 214 111 199L204 26L306 381C312 402 331 416 352 416H560C569 416 576 409 576 400C576 391 569 384 560 384H352Z" },
-    fraction: { width: 448, path: "M248 344C248 357 237 368 224 368C211 368 200 357 200 344C200 331 211 320 224 320C237 320 248 331 248 344ZM168 344C168 375 193 400 224 400C255 400 280 375 280 344C280 313 255 288 224 288C193 288 168 313 168 344ZM0 192C0 201 7 208 16 208H432C441 208 448 201 448 192C448 183 441 176 432 176H16C7 176 0 183 0 192ZM224 16C237 16 248 27 248 40C248 53 237 64 224 64C211 64 200 53 200 40C200 27 211 16 224 16ZM224 96C255 96 280 71 280 40C280 9 255 -16 224 -16C193 -16 168 9 168 40C168 71 193 96 224 96Z" },
-    power: { width: 576, path: "M528 432C528 437 526 442 521 445C517 448 512 449 507 447L459 431C451 428 446 419 449 411C452 403 461 398 469 401L496 410V288H464C455 288 448 281 448 272C448 263 455 256 464 256H560C569 256 576 263 576 272C576 281 569 288 560 288H528V432ZM80 384C71 384 64 377 64 368C64 359 71 352 80 352H119L221 192L119 32H80C71 32 64 25 64 16C64 7 71 0 80 0H128C134 0 139 3 142 7L240 162L339 7C341 3 347 0 352 0H400C409 0 416 7 416 16C416 25 409 32 400 32H361L259 192L361 352H400C409 352 416 359 416 368C416 377 409 384 400 384H352C347 384 341 381 339 377L240 222L142 377C139 381 134 384 128 384H80Z" },
-    newLine: { width: 512, path: "M480 368C480 377 487 384 496 384C505 384 512 377 512 368V272C512 219 469 176 416 176H55L171 59C178 53 178 43 171 37C165 30 155 30 149 37L5 181C2 184 0 188 0 192C0 196 2 200 5 203L149 347C155 353 165 353 171 347C178 341 178 331 171 325L55 208H416C451 208 480 237 480 272V368Z" },
-    remove: { width: 448, path: "M176 432C169 432 163 427 161 421L150 384H299L288 421C286 427 279 432 272 432H176ZM130 430C136 450 155 464 176 464H272C293 464 312 450 318 430L332 384H432C441 384 448 377 448 368C448 359 441 352 432 352H16C7 352 0 359 0 368C0 377 7 384 16 384H116L130 430ZM52 -5 29 304H61L84 -2C85 -19 99 -32 115 -32H333C349 -32 363 -19 364 -2L387 304H419L396 -5C394 -38 366 -64 333 -64H115C82 -64 54 -38 52 -5ZM157 227C163 233 173 233 179 227L224 183L269 227C275 233 285 233 291 227C298 221 298 211 291 205L247 160L291 115C298 109 298 99 291 93C285 86 275 86 269 93L224 137L179 93C173 86 163 86 157 93C151 99 151 109 157 115L201 160L157 205C151 211 151 221 157 227Z" },
-  }[name];
+    sqrt: { width: 576, paths: [RADICAL] },
+    // The same radical, with the index drawn where a root's index sits.
+    nthRoot: { width: 576, paths: [RADICAL], index: true },
+    frac: { width: 448, paths: ["M248 344C248 357 237 368 224 368C211 368 200 357 200 344C200 331 211 320 224 320C237 320 248 331 248 344ZM168 344C168 375 193 400 224 400C255 400 280 375 280 344C280 313 255 288 224 288C193 288 168 313 168 344ZM0 192C0 201 7 208 16 208H432C441 208 448 201 448 192C448 183 441 176 432 176H16C7 176 0 183 0 192ZM224 16C237 16 248 27 248 40C248 53 237 64 224 64C211 64 200 53 200 40C200 27 211 16 224 16ZM224 96C255 96 280 71 280 40C280 9 255 -16 224 -16C193 -16 168 9 168 40C168 71 193 96 224 96Z"] },
+    // A power and a subscript are the same two glyphs, with the numeral high or low.
+    power: { width: 576, paths: [LETTER_X, NUMERAL] },
+    subscript: { width: 576, paths: [LETTER_X], lowered: NUMERAL },
+    group: { width: 448, paths: [], brackets: true },
+    newLine: { width: 512, paths: ["M480 368C480 377 487 384 496 384C505 384 512 377 512 368V272C512 219 469 176 416 176H55L171 59C178 53 178 43 171 37C165 30 155 30 149 37L5 181C2 184 0 188 0 192C0 196 2 200 5 203L149 347C155 353 165 353 171 347C178 341 178 331 171 325L55 208H416C451 208 480 237 480 272V368Z"] },
+    remove: { width: 448, paths: ["M176 432C169 432 163 427 161 421L150 384H299L288 421C286 427 279 432 272 432H176ZM130 430C136 450 155 464 176 464H272C293 464 312 450 318 430L332 384H432C441 384 448 377 448 368C448 359 441 352 432 352H16C7 352 0 359 0 368C0 377 7 384 16 384H116L130 430ZM52 -5 29 304H61L84 -2C85 -19 99 -32 115 -32H333C349 -32 363 -19 364 -2L387 304H419L396 -5C394 -38 366 -64 333 -64H115C82 -64 54 -38 52 -5ZM157 227C163 233 173 233 179 227L224 183L269 227C275 233 285 233 291 227C298 221 298 211 291 205L247 160L291 115C298 109 298 99 291 93C285 86 275 86 269 93L224 137L179 93C173 86 163 86 157 93C151 99 151 109 157 115L201 160L157 205C151 211 151 221 157 227Z"] },
+  }[name] as { width: number; paths: string[]; index?: boolean; lowered?: string; brackets?: boolean };
 
-  return <svg className="math-input__icon" viewBox={`0 -64 ${glyph.width} 512`} fill="currentColor" aria-hidden="true"><path d={glyph.path} transform="translate(0 384) scale(1 -1)" /></svg>;
+  return <svg className="math-input__icon" viewBox={`0 -64 ${glyph.width} 512`} fill="currentColor" aria-hidden="true">
+    <g transform="translate(0 384) scale(1 -1)">
+      {glyph.paths.map((path) => <path key={path} d={path} />)}
+      {glyph.lowered ? <path d={glyph.lowered} transform="translate(0 -270)" /> : null}
+    </g>
+    {glyph.index ? <text x="24" y="112" fontSize="230" fontWeight="700" fill="currentColor">n</text> : null}
+    {glyph.brackets ? <g stroke="currentColor" strokeWidth="34" strokeLinecap="round" fill="none">
+      <path d="M170 0C60 100 60 288 170 384" />
+      <path d="M278 0C388 100 388 288 278 384" />
+    </g> : null}
+  </svg>;
 }
 
-const escapeHtml = (text: string) => text.replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[char]!);
-const rootClass = "math-input__root";
-const rootContents = (content: string) => `<svg class="math-input__root-symbol" fill="none" aria-hidden="true"><path d="M1 16.5 7.4 25 18 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /><line x1="18" y1="2" x2="100%" y2="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg><span class="math-input__slot math-input__slot--root" data-slot="root">${content}</span>`;
-const rootTemplate = (content: string) => `<span class="${rootClass}" data-math="root">${rootContents(content)}</span>${CARET_ANCHOR}`;
-const fractionClass = "math-input__fraction";
-const fractionContents = (numerator: string, denominator: string) => `<span class="math-input__slot math-input__slot--numerator" data-slot="numerator">${numerator}</span><span class="math-input__slot math-input__slot--denominator" data-slot="denominator">${denominator}</span>`;
-const fractionTemplate = (numerator: string, denominator: string) => `<span class="${fractionClass}" data-math="fraction">${fractionContents(numerator, denominator)}</span>${CARET_ANCHOR}`;
-const powerClass = "math-input__power";
-const powerContents = (content: string) => `<span class="math-input__slot math-input__slot--power" data-slot="power">${content}</span>`;
-const powerTemplate = (content: string) => `<span class="${powerClass}" data-math="power">${powerContents(content)}</span>${CARET_ANCHOR}`;
-const cleanFormulaText = (text: string) => text.replace(/\s+/g, "").split("*").join("×");
-const initialMarkup = (line: string) => {
-  let position = 0;
-  const parseGroup = (): string | null => {
-    if (line[position] !== "{") return null;
-    position += 1;
-    const content = parseSequence(true);
-    if (line[position] === "}") position += 1;
-    return content;
-  };
-  const parseSequence = (stopAtClosingBrace: boolean): string => {
-    let markup = "";
-    while (position < line.length && !(stopAtClosingBrace && line[position] === "}")) {
-      if (line.startsWith("\\sqrt", position)) {
-        position += "\\sqrt".length;
-        const content = parseGroup();
-        markup += content === null ? escapeHtml("\\sqrt") : rootTemplate(content);
-        continue;
-      }
-      if (line.startsWith("\\frac", position)) {
-        position += "\\frac".length;
-        const numerator = parseGroup();
-        const denominator = numerator === null ? null : parseGroup();
-        if (numerator !== null && denominator !== null) markup += fractionTemplate(numerator, denominator);
-        else if (numerator !== null) markup += `${escapeHtml("\\frac{")}${numerator}${escapeHtml("}")}`;
-        else markup += escapeHtml("\\frac");
-        continue;
-      }
-      if (line.startsWith("\\times", position)) {
-        markup += "×";
-        position += "\\times".length;
-        continue;
-      }
-      if (line.startsWith("^{", position)) {
-        position += 1;
-        const content = parseGroup();
-        markup += content === null ? "^" : powerTemplate(content);
-        continue;
-      }
-      markup += escapeHtml(cleanFormulaText(line[position]));
-      position += 1;
-    }
-    return markup;
-  };
-  return parseSequence(false);
+const TOOLS: { kind: CompoundKind; label: string; title: string }[] = [
+  { kind: "sqrt", label: "Insert square root", title: "Square root" },
+  { kind: "nthRoot", label: "Insert nth root", title: "Nth root" },
+  { kind: "frac", label: "Insert fraction", title: "Divide" },
+  { kind: "power", label: "Insert power", title: "Power" },
+  { kind: "subscript", label: "Insert subscript", title: "Subscript" },
+  { kind: "group", label: "Insert brackets", title: "Brackets" },
+];
+
+/** Single characters that mean something structural rather than literal. */
+const KEYED_ACTION: Record<string, Action> = {
+  "/": { type: "divide" },
+  "÷": { type: "divide" },
+  "^": { type: "script", kind: "power" },
+  _: { type: "script", kind: "subscript" },
+  "=": { type: "equals" },
+  "(": { type: "insertCompound", kind: "group" },
+  ")": { type: "closeGroup" },
 };
 
-const makeTemplate = (kind: Template) => {
-  const node = document.createElement("span");
-  node.className = kind === "fraction" ? fractionClass : kind === "power" ? powerClass : rootClass;
-  node.dataset.math = kind;
-  if (kind === "root") node.innerHTML = rootContents("");
-  if (kind === "fraction") node.innerHTML = fractionContents("", "");
-  if (kind === "power") node.innerHTML = powerContents("");
-  return node;
-};
+const BACKWARD_DELETIONS = ["deleteContentBackward", "deleteWordBackward", "deleteSoftLineBackward", "deleteHardLineBackward", "deleteByCut", "deleteByDrag", "deleteContent"];
+const FORWARD_DELETIONS = ["deleteContentForward", "deleteWordForward", "deleteSoftLineForward", "deleteHardLineForward"];
 
-const latexFrom = (node: Node): string => {
-  if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? "").split(CARET_ANCHOR).join("").split("×").join("\\times");
-  if (!(node instanceof HTMLElement)) return "";
-  const slot = (name: string) => {
-    const target = node.querySelector(`[data-slot="${name}"]`);
-    return target ? Array.from(target.childNodes).map(latexFrom).join("") : "";
-  };
-  if (node.dataset.math === "root") return `\\sqrt{${slot("root")}}`;
-  if (node.dataset.math === "fraction") return `\\frac{${slot("numerator")}}{${slot("denominator")}}`;
-  if (node.dataset.math === "power") return `^{${slot("power")}}`;
-  return Array.from(node.childNodes).map(latexFrom).join("");
-};
-
-const selectionSlot = () => {
-  const selection = window.getSelection();
-  if (!selection?.rangeCount) return null;
-  const nodes = [selection.focusNode, selection.anchorNode, selection.getRangeAt(0).commonAncestorContainer];
-  for (const node of nodes) {
-    const element = node instanceof HTMLElement ? node : node?.parentElement;
-    const slot = element?.closest<HTMLElement>("[data-slot]");
-    if (slot) return slot;
-  }
-  return null;
-};
-
-const directSlots = (math: HTMLElement) => Array.from(math.children).filter((child): child is HTMLElement => child instanceof HTMLElement && Boolean(child.dataset.slot));
+const latexOf = (rows: Row[]): string => rows.map((row) => serializeToLatex(row.content)).join("\n");
+const toRows = (latex: string): Row[] => latex.split("\n").map((line) => ({ id: crypto.randomUUID(), content: parseLatex(line) }));
+const sameRange = (first: SelectionRange, second: SelectionRange): boolean => samePosition(first.anchor, second.anchor) && samePosition(first.focus, second.focus);
 
 /** A dependency-free, visual formula editor that emits LaTeX-compatible text. */
 export function MathInput({ value, defaultValue = "", onChange, placeholder = "Write a formula…", disabled = false, className = "", style, "aria-label": ariaLabel = "Math editor" }: MathInputProps) {
-  const toRows = (latex: string): Row[] => latex.split("\n").map((text) => ({ id: crypto.randomUUID(), text }));
-  const [rows, setRows] = useState<Row[]>(() => toRows(value ?? defaultValue));
-  const fields = useRef(new Map<string, HTMLDivElement>());
-  const activeRow = useRef<string | null>(null);
-  const activeSlot = useRef<HTMLElement | null>(null);
+  const [state, setState] = useState<EditorState>(() => ({ rows: toRows(value ?? defaultValue), caret: null }));
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
-  const focusAfterAdd = useRef<string | null>(null);
-  const lastExternal = useRef(value);
+  const fields = useRef(new Map<string, HTMLDivElement>());
+  const frame = useRef<HTMLDivElement | null>(null);
+  /** Mirrors `state` so event handlers read the current tree without re-subscribing. */
+  const live = useRef(state);
+  const history = useRef<History<EditorState>>(emptyHistory());
+  const composing = useRef(false);
+  const pendingFocus = useRef<string | null>(null);
+  const published = useRef<string | null>(null);
   const labelId = useId();
+  if (published.current === null) published.current = latexOf(state.rows);
+
+  const commit = useCallback((next: EditorState) => {
+    live.current = next;
+    setState(next);
+  }, []);
+
+  /**
+   * The single path from an event to a new document: read the current row, run the pure
+   * reducer, keep the result. Nothing else is allowed to change the tree or the caret.
+   */
+  const dispatch = useCallback((rowId: string, action: Action, tag = "") => {
+    const current = live.current;
+    const index = current.rows.findIndex((row) => row.id === rowId);
+    if (index < 0) return;
+    const row = current.rows[index];
+    const before: RowState = { content: row.content, selection: current.caret?.rowId === rowId ? current.caret.range : collapsedAt(rowEnd(row.content)) };
+    const after = reduce(before, action);
+    const edited = after.content !== before.content;
+    if (!edited && sameRange(after.selection, before.selection)) return;
+    // Moving the caret ends a run of typing, so undo stops where the user stopped.
+    history.current = edited ? record(history.current, current, tag) : { ...history.current, lastTag: "" };
+    commit({
+      rows: edited ? current.rows.map((candidate, at) => (at === index ? { ...candidate, content: after.content } : candidate)) : current.rows,
+      caret: { rowId, range: after.selection },
+    });
+  }, [commit]);
+
+  const restore = useCallback((direction: "undo" | "redo") => {
+    const result = (direction === "undo" ? undo : redo)(history.current, live.current);
+    if (!result) return;
+    history.current = result.history;
+    pendingFocus.current = result.snapshot.caret?.rowId ?? null;
+    commit(result.snapshot);
+  }, [commit]);
+
+  const createRow = useCallback(() => {
+    const current = live.current;
+    const row: Row = { id: crypto.randomUUID(), content: parseLatex("") };
+    history.current = record(history.current, current);
+    pendingFocus.current = row.id;
+    commit({ rows: [...current.rows, row], caret: { rowId: row.id, range: collapsedAt(rowStart()) } });
+  }, [commit]);
+
+  const removeRow = useCallback((id: string) => {
+    const current = live.current;
+    if (current.rows.length < 2) return;
+    const index = current.rows.findIndex((row) => row.id === id);
+    const rows = current.rows.filter((row) => row.id !== id);
+    const next = rows[Math.min(index, rows.length - 1)];
+    history.current = record(history.current, current);
+    pendingFocus.current = next.id;
+    commit({ rows, caret: { rowId: next.id, range: collapsedAt(rowEnd(next.content)) } });
+  }, [commit]);
+
+  // Adopt a new controlled value, unless it is the one we just emitted.
+  useEffect(() => {
+    if (value === undefined || value === published.current) return;
+    published.current = value;
+    commit({ rows: toRows(value), caret: null });
+  }, [value, commit]);
 
   useEffect(() => {
-    if (value === undefined || value === lastExternal.current) return;
-    lastExternal.current = value;
-    setRows(toRows(value));
-  }, [value]);
-
-  useEffect(() => {
-    const id = focusAfterAdd.current;
-    const field = id ? fields.current.get(id) : undefined;
-    if (field) { focusAfterAdd.current = null; placeAtEnd(field); }
-  }, [rows]);
-
-  const publishRows = (nextRows: Row[]) => {
-    const next = nextRows.map(({ id, text }) => {
-      const field = fields.current.get(id);
-      return field ? Array.from(field.childNodes).map(latexFrom).join("") : text;
-    }).join("\n");
-    lastExternal.current = next;
+    const next = latexOf(state.rows);
+    if (next === published.current) return;
+    published.current = next;
     onChange?.(next);
-  };
+  }, [state.rows, onChange]);
 
-  const publish = () => publishRows(rows);
+  // Put the caret where the model says it is. Runs after every render, and is a no-op
+  // when the DOM already agrees, so it doubles as a repair for stray native movement.
+  useLayoutEffect(() => {
+    const caret = state.caret;
+    const field = caret ? fields.current.get(caret.rowId) : undefined;
+    if (composing.current || !caret || !field || document.activeElement !== field) return;
+    if (applySelection(field, caret.range)) scrollCaretIntoView(field);
+  });
 
-  const insertCleanText = (text: string) => {
-    const cleanText = cleanFormulaText(text);
-    if (!cleanText) return;
-    insertText(cleanText);
-    publish();
-  };
-
-  const currentField = () => fields.current.get(activeRow.current ?? rows[0]?.id);
-  const insert = (kind: Template) => {
-    const field = currentField();
-    if (!field || disabled) return;
+  useLayoutEffect(() => {
+    const id = pendingFocus.current;
+    const field = id ? fields.current.get(id) : undefined;
+    if (!id || !field) return;
+    pendingFocus.current = null;
     field.focus();
-    const selection = window.getSelection();
-    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
-    const node = makeTemplate(kind);
-    if (range && field.contains(range.commonAncestorContainer)) { range.deleteContents(); range.insertNode(node); } else field.append(node);
-    ensureCaretAnchor(node);
-    const slot = node.querySelector<HTMLElement>("[data-slot]")!;
-    activeSlot.current = slot;
-    placeAtEnd(slot);
-    publish();
-  };
+    if (live.current.caret?.rowId === id) applySelection(field, live.current.caret.range);
+  }, [state]);
 
-  const insertFractionFromPreviousTerm = () => {
-    const field = currentField();
-    if (!field || disabled) return;
-    field.focus();
-    const selection = window.getSelection();
-    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
-    const focus = selection?.focusNode;
-    const slot = selectionSlot();
-    const editableRoot = slot ?? field;
-    const textNode = focus?.nodeType === Node.TEXT_NODE
-      ? focus
-      : focus === editableRoot
-        ? editableRoot.childNodes[selection?.focusOffset ? selection.focusOffset - 1 : -1]
-        : null;
-    const caretOffset = focus?.nodeType === Node.TEXT_NODE ? selection?.focusOffset ?? 0 : textNode?.textContent?.length ?? 0;
+  // Native listeners, delegated from the frame: beforeinput carries the inputType that
+  // keydown cannot be trusted for on mobile, and composition needs the real events.
+  useEffect(() => {
+    const container = frame.current;
+    if (!container) return;
+    const fieldOf = (target: EventTarget | null): HTMLElement | null => {
+      const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
+      return element?.closest<HTMLElement>(".math-input__field") ?? null;
+    };
 
-    if (range?.collapsed && selection && textNode?.nodeType === Node.TEXT_NODE && field.contains(textNode)) {
-      const text = textNode.textContent ?? "";
-      let termText = text.slice(0, caretOffset);
-      let termStartNode = textNode;
-      if (/^[A-Za-z0-9.,]+$/.test(termText)) {
-        let sibling = textNode.previousSibling;
-        while (sibling?.nodeType === Node.TEXT_NODE && /^[A-Za-z0-9.,]+$/.test(sibling.textContent ?? "")) {
-          termText = `${sibling.textContent}${termText}`;
-          termStartNode = sibling;
-          sibling = sibling.previousSibling;
-        }
-      }
-      const previousTerm = termText.match(/[A-Za-z0-9.,]+$/)?.[0];
-      if (previousTerm) {
-        const fraction = makeTemplate("fraction");
-        const numerator = fraction.querySelector<HTMLElement>('[data-slot="numerator"]')!;
-        const denominator = fraction.querySelector<HTMLElement>('[data-slot="denominator"]')!;
-        const replaceRange = document.createRange();
-        replaceRange.setStart(termStartNode, previousTerm === termText ? 0 : caretOffset - previousTerm.length);
-        replaceRange.setEnd(textNode, caretOffset);
-        replaceRange.deleteContents();
-        replaceRange.insertNode(fraction);
-        ensureCaretAnchor(fraction);
-        numerator.textContent = previousTerm;
-        activeSlot.current = denominator;
-        placeAtEnd(denominator);
-        publish();
-        return;
-      }
+    const onBeforeInput = (event: Event) => {
+      const input = event as InputEvent;
+      const field = fieldOf(input.target);
+      const rowId = field?.dataset.row;
+      if (!field || !rowId) return;
+      if (input.inputType === "insertCompositionText") return; // let the IME own the DOM until it is done
+      if (disabled) { input.preventDefault(); return; }
+      input.preventDefault();
+      const data = input.data ?? input.dataTransfer?.getData("text") ?? "";
+      if (input.inputType === "historyUndo") return restore("undo");
+      if (input.inputType === "historyRedo") return restore("redo");
+      if (BACKWARD_DELETIONS.includes(input.inputType)) return dispatch(rowId, { type: "delete", direction: "backward" }, `delete:${rowId}`);
+      if (FORWARD_DELETIONS.includes(input.inputType)) return dispatch(rowId, { type: "delete", direction: "forward" }, `delete:${rowId}`);
+      if (input.inputType === "insertParagraph" || input.inputType === "insertLineBreak") return createRow();
+      if (!input.inputType.startsWith("insert")) return;
+      const keyed = data.length === 1 ? KEYED_ACTION[data] : undefined;
+      dispatch(rowId, keyed ?? { type: "insertText", text: data }, keyed ? "" : `type:${rowId}`);
+    };
+
+    const onCompositionStart = () => { composing.current = true; };
+
+    const onCompositionEnd = (event: Event) => {
+      composing.current = false;
+      const field = fieldOf(event.target);
+      const rowId = field?.dataset.row;
+      const row = live.current.rows.find((candidate) => candidate.id === rowId);
+      if (!field || !rowId || !row) return;
+      // Undo the IME's direct DOM edits so React's next render diffs against reality,
+      // then apply the composed text as one ordinary insertion.
+      repairField(field, row.content);
+      const composed = (event as CompositionEvent).data ?? "";
+      if (composed) dispatch(rowId, { type: "insertText", text: composed });
+      else if (live.current.caret) applySelection(field, live.current.caret.range);
+    };
+
+    // Anything that reached the DOM without going through a reducer gets reverted.
+    const onInput = (event: Event) => {
+      if (composing.current) return;
+      const field = fieldOf(event.target);
+      const row = live.current.rows.find((candidate) => candidate.id === field?.dataset.row);
+      if (!field || !row) return;
+      repairField(field, row.content);
+      if (live.current.caret?.rowId === row.id) applySelection(field, live.current.caret.range);
+    };
+
+    container.addEventListener("beforeinput", onBeforeInput);
+    container.addEventListener("compositionstart", onCompositionStart);
+    container.addEventListener("compositionend", onCompositionEnd);
+    container.addEventListener("input", onInput);
+    return () => {
+      container.removeEventListener("beforeinput", onBeforeInput);
+      container.removeEventListener("compositionstart", onCompositionStart);
+      container.removeEventListener("compositionend", onCompositionEnd);
+      container.removeEventListener("input", onInput);
+    };
+  }, [disabled, dispatch, createRow, restore]);
+
+  // Native selection gestures — Shift+Arrow, double-click, Select All — are left to the
+  // browser and read back here, rather than each being given its own reducer action.
+  useEffect(() => {
+    const onSelectionChange = () => {
+      if (composing.current) return;
+      const field = document.activeElement;
+      if (!(field instanceof HTMLElement) || !field.classList.contains("math-input__field")) return;
+      const rowId = field.dataset.row;
+      if (!rowId || !fields.current.has(rowId)) return;
+      const range = selectionFromDom(field);
+      const caret = live.current.caret;
+      if (!range || (caret?.rowId === rowId && sameRange(caret.range, range))) return;
+      commit({ rows: live.current.rows, caret: { rowId, range } });
+    };
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => document.removeEventListener("selectionchange", onSelectionChange);
+  }, [commit]);
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>, rowId: string) => {
+    if (disabled) return;
+    if (event.metaKey || event.ctrlKey) {
+      const key = event.key.toLowerCase();
+      if (key === "z") { event.preventDefault(); restore(event.shiftKey ? "redo" : "undo"); }
+      else if (key === "y") { event.preventDefault(); restore("redo"); }
+      return; // every other shortcut, including Select All and Copy, stays native
     }
-
-    insert("fraction");
-  };
-
-  const advanceFromSlot = (slot: HTMLElement) => {
-    const math = slot.closest<HTMLElement>("[data-math]");
-    if (!math) return;
-    const denominator = directSlots(math).find((candidate) => candidate.dataset.slot === "denominator");
-    if (slot.dataset.slot === "numerator" && denominator) {
-      activeSlot.current = denominator;
-      placeAtEnd(denominator);
-      return;
-    }
-    activeSlot.current = null;
-    placeAfter(math);
-  };
-
-  const retreatFromSlot = (slot: HTMLElement) => {
-    const math = slot.closest<HTMLElement>("[data-math]");
-    if (!math) return;
-    const numerator = directSlots(math).find((candidate) => candidate.dataset.slot === "numerator");
-    if (slot.dataset.slot === "denominator" && numerator) {
-      activeSlot.current = numerator;
-      placeAtEnd(numerator);
-      return;
-    }
-    activeSlot.current = null;
-    placeBefore(math);
-  };
-
-  const enterFormula = (math: HTMLElement, direction: "first" | "last") => {
-    const slots = directSlots(math);
-    const slot = direction === "first" ? slots[0] : slots[slots.length - 1];
-    if (!slot) return;
-    activeSlot.current = slot;
-    if (direction === "first") placeAtStart(slot); else placeAtEnd(slot);
-  };
-
-  const createRow = () => {
-    const nextId = crypto.randomUUID();
-    focusAfterAdd.current = nextId;
-    const next = [...rows, { id: nextId, text: "" }];
-    setRows(next);
-    publishRows(next);
-  };
-
-  const removeRow = (id: string) => {
-    if (rows.length < 2) return;
-    const index = rows.findIndex((row) => row.id === id);
-    const next = rows.filter((row) => row.id !== id);
-    const nextFocus = next[Math.min(index, next.length - 1)].id;
-    activeRow.current = nextFocus;
-    setActiveRowId(nextFocus);
-    focusAfterAdd.current = nextFocus;
-    setRows(next);
-    publishRows(next);
-  };
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>, id: string) => {
-    activeRow.current = id;
-    activeSlot.current = selectionSlot();
-    if (event.key === " " || event.key === "Spacebar") {
+    if (event.shiftKey && event.key.startsWith("Arrow")) return; // native selection extension
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
+      dispatch(rowId, { type: "move", direction: event.key === "ArrowLeft" ? "backward" : "forward" });
       return;
     }
-    if (event.key === "Backspace" || event.key === "Delete") {
+    if (event.key === "Home" || event.key === "End") {
       event.preventDefault();
-      if (deleteWithinScope(event.currentTarget, event.key === "Backspace" ? "backward" : "forward")) publish();
-      return;
-    }
-    if (event.key === "/" || event.key === "÷") {
-      event.preventDefault();
-      insertFractionFromPreviousTerm();
-      return;
-    }
-    if (event.key === "^") {
-      event.preventDefault();
-      insert("power");
-      return;
-    }
-    if (event.key === "*" || event.key === "×") {
-      event.preventDefault();
-      insertCleanText("×");
-      return;
-    }
-    if (event.key === "+" || event.key === "-") {
-      event.preventDefault();
-      insertCleanText(event.key);
-      return;
-    }
-    if (event.key === "End") { event.preventDefault(); placeAtEnd(event.currentTarget); return; }
-    if (event.key === "ArrowRight") {
-      const slot = selectionSlot();
-      if (slot && caretAtEnd(slot)) { event.preventDefault(); advanceFromSlot(slot); return; }
-      const nextMath = adjacentMath("after");
-      if (nextMath) { event.preventDefault(); enterFormula(nextMath, "first"); return; }
-    }
-    if (event.key === "ArrowLeft") {
-      const slot = selectionSlot();
-      if (slot && caretAtStart(slot)) { event.preventDefault(); retreatFromSlot(slot); return; }
-      const previousMath = adjacentMath("before");
-      if (previousMath) { event.preventDefault(); enterFormula(previousMath, "last"); return; }
-    }
-    if (event.key === "=") {
-      event.preventDefault();
-      const slot = selectionSlot();
-      if (slot) {
-        const math = slot.closest<HTMLElement>("[data-math]");
-        if (math) {
-          placeAfter(math);
-          insertText("=");
-          activeSlot.current = null;
-          publish();
-          return;
-        }
-      }
-      insertCleanText("=");
+      dispatch(rowId, { type: "moveToEdge", edge: event.key === "Home" ? "start" : "end" });
       return;
     }
     if (event.key === "Enter" && !event.shiftKey) {
@@ -355,269 +296,56 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
 
   const buttonClass = "math-input__tool";
   return <div className={`math-input ${className}`.trim()} style={style}>
-    <div className="math-input__frame" aria-labelledby={labelId}>
+    <div className="math-input__frame" ref={frame} aria-labelledby={labelId}>
       <span id={labelId} className="math-input__visually-hidden">{ariaLabel}</span>
-      {rows.map((row, index) => <div className="math-input__row" key={row.id}>
+      {state.rows.map((row, index) => <div className="math-input__row" key={row.id}>
         {activeRowId === row.id && <div className="math-input__toolbar" role="toolbar" aria-label={`Formula tools for row ${index + 1}`}>
-          <button type="button" className={buttonClass} onMouseDown={(event) => event.preventDefault()} onClick={() => insert("root")} disabled={disabled} aria-label="Insert square root" title="Square root"><EditorIcon name="root" /></button>
-          <button type="button" className={buttonClass} onMouseDown={(event) => event.preventDefault()} onClick={() => insert("fraction")} disabled={disabled} aria-label="Insert fraction" title="Divide"><EditorIcon name="fraction" /></button>
-          <button type="button" className={buttonClass} onMouseDown={(event) => event.preventDefault()} onClick={() => insert("power")} disabled={disabled} aria-label="Insert power" title="Power"><EditorIcon name="power" /></button>
-          {rows.length > 1 && <button type="button" className="math-input__remove-row" onMouseDown={(event) => event.preventDefault()} onClick={() => removeRow(row.id)} aria-label="Remove formula row" title="Remove"><EditorIcon name="remove" /></button>}
+          {TOOLS.map((tool) => <button key={tool.kind} type="button" className={buttonClass} onMouseDown={(event) => event.preventDefault()} onClick={() => dispatch(row.id, { type: "insertCompound", kind: tool.kind })} disabled={disabled} aria-label={tool.label} title={tool.title}><EditorIcon name={tool.kind} /></button>)}
+          {state.rows.length > 1 && <button type="button" className="math-input__remove-row" onMouseDown={(event) => event.preventDefault()} onClick={() => removeRow(row.id)} aria-label="Remove formula row" title="Remove"><EditorIcon name="remove" /></button>}
         </div>}
-        <div ref={(element) => { if (element) fields.current.set(row.id, element); else fields.current.delete(row.id); }} className="math-input__field" contentEditable={!disabled} suppressContentEditableWarning spellCheck={false} role="textbox" aria-multiline="false" aria-label={`${ariaLabel}, row ${index + 1}`} data-placeholder={placeholder} dangerouslySetInnerHTML={{ __html: initialMarkup(row.text) }} onFocus={() => { activeRow.current = row.id; setActiveRowId(row.id); activeSlot.current = selectionSlot(); }} onBlur={() => setActiveRowId(null)} onInput={(event) => { normalizeFormulaDom(event.currentTarget); activeSlot.current = selectionSlot(); publish(); }} onBeforeInput={(event) => {
-          const incomingText = event.nativeEvent.data;
-          const cleanText = incomingText ? cleanFormulaText(incomingText) : "";
-          if (incomingText && cleanText !== incomingText) {
+        <div
+          ref={(element) => { if (element) fields.current.set(row.id, element); else fields.current.delete(row.id); }}
+          className="math-input__field"
+          contentEditable={!disabled}
+          suppressContentEditableWarning
+          spellCheck={false}
+          role="textbox"
+          aria-multiline="false"
+          aria-label={`${ariaLabel}, row ${index + 1}`}
+          data-row={row.id}
+          data-placeholder={placeholder}
+          data-empty={isBlank(row.content) ? "" : undefined}
+          // React owns every child of this element, so writing assistants that inject
+          // their own nodes into editable fields are asked to keep out of it.
+          data-gramm="false"
+          data-gramm_editor="false"
+          data-enable-grammarly="false"
+          onFocus={(event) => {
+            setActiveRowId(row.id);
+            if (live.current.caret?.rowId === row.id) return;
+            commit({ rows: live.current.rows, caret: { rowId: row.id, range: selectionFromDom(event.currentTarget) ?? collapsedAt(rowEnd(row.content)) } });
+          }}
+          onBlur={() => setActiveRowId(null)}
+          onKeyDown={(event) => onKeyDown(event, row.id)}
+          onPaste={(event) => {
             event.preventDefault();
-            insertCleanText(cleanText);
-          }
-        }} onPaste={(event) => {
-          event.preventDefault();
-          insertCleanText(event.clipboardData.getData("text"));
-        }} onKeyDown={(event) => onKeyDown(event, row.id)} onKeyUp={() => { activeSlot.current = selectionSlot(); }} onMouseDown={(event) => {
-          const target = event.target instanceof Element ? event.target : null;
-          const slot = target?.closest<HTMLElement>("[data-slot]");
-          const formula = formulaAtPointer(event.currentTarget, event.clientX, event.clientY);
-          if (formula && event.clientX >= formula.getBoundingClientRect().right) {
+            dispatch(row.id, { type: "insertText", text: event.clipboardData.getData("text") });
+          }}
+          onMouseDown={(event) => {
+            // Clicks on text are placed by the browser; clicks on a fraction bar, a
+            // bracket, a radical or slot padding are not, so those are hit-tested here.
+            if (disabled || event.button !== 0 || (event.target as Element).closest(".math-input__text")) return;
+            const position = positionFromPoint(event.currentTarget, event.clientX, event.clientY);
+            if (!position) return;
             event.preventDefault();
-            activeSlot.current = null;
-            placeAfter(formula);
-            return;
-          }
-          if (slot) {
-            event.preventDefault();
-            placeAtPointer(slot, event.clientX, event.clientY);
-            activeSlot.current = slot;
-            return;
-          }
-          if (!formula) return;
-          event.preventDefault();
-          const closestSlot = directSlots(formula).sort((first, second) => pointerDistance(first, event.clientX, event.clientY) - pointerDistance(second, event.clientX, event.clientY))[0];
-          if (closestSlot) {
-            placeAtPointer(closestSlot, event.clientX, event.clientY);
-            activeSlot.current = closestSlot;
-          }
-        }} onClick={() => { activeSlot.current = selectionSlot(); }} />
+            event.currentTarget.focus();
+            dispatch(row.id, { type: "select", selection: collapsedAt(position) });
+          }}
+        >{renderNodes(row.content)}</div>
         {activeRowId === row.id && <button type="button" className="math-input__new-row" onMouseDown={(event) => event.preventDefault()} onClick={createRow} disabled={disabled} aria-label="Add new formula row" title="New line"><EditorIcon name="newLine" /></button>}
       </div>)}
     </div>
   </div>;
 }
-
-function placeAtEnd(element: HTMLElement) {
-  const range = document.createRange();
-  const lastChild = element.lastChild;
-  if (lastChild?.nodeType === Node.TEXT_NODE && lastChild.textContent?.startsWith(CARET_ANCHOR)) range.setStart(lastChild, lastChild.textContent.length);
-  else { range.selectNodeContents(element); range.collapse(false); }
-  range.collapse(true);
-  selectRange(range, element);
-}
-function placeAtStart(element: HTMLElement) { const range = document.createRange(); range.selectNodeContents(element); range.collapse(true); selectRange(range, element); }
-function placeBefore(element: HTMLElement) { const range = document.createRange(); range.setStartBefore(element); range.collapse(true); selectRange(range, element); }
-function ensureCaretAnchor(element: HTMLElement) {
-  const next = element.nextSibling;
-  if (next?.nodeType === Node.TEXT_NODE && next.textContent?.startsWith(CARET_ANCHOR)) {
-    const anchor = next as Text;
-    if (anchor.length > CARET_ANCHOR.length) anchor.splitText(CARET_ANCHOR.length);
-    return anchor;
-  }
-  const anchor = document.createTextNode(CARET_ANCHOR);
-  element.parentNode?.insertBefore(anchor, next);
-  return anchor;
-}
-function placeAfter(element: HTMLElement) {
-  const anchor = ensureCaretAnchor(element);
-  const range = document.createRange();
-  range.setStart(anchor, anchor.length);
-  range.collapse(true);
-  selectRange(range, element);
-}
-function placeAtPointer(element: HTMLElement, clientX: number, clientY: number) {
-  const positionedDocument = document as Document & {
-    caretPositionFromPoint?: (x: number, y: number) => CaretPosition | null;
-    caretRangeFromPoint?: (x: number, y: number) => Range | null;
-  };
-  const caretRange = positionedDocument.caretRangeFromPoint?.(clientX, clientY) ?? (() => {
-    const position = positionedDocument.caretPositionFromPoint?.(clientX, clientY);
-    if (!position) return null;
-    const range = document.createRange();
-    range.setStart(position.offsetNode, position.offset);
-    range.collapse(true);
-    return range;
-  })();
-
-  if (caretRange && (caretRange.startContainer === element || element.contains(caretRange.startContainer))) {
-    selectRange(caretRange, element);
-    return;
-  }
-
-  const range = document.createRange();
-  range.selectNodeContents(element);
-  range.collapse(clientX >= element.getBoundingClientRect().left + element.getBoundingClientRect().width / 2);
-  selectRange(range, element);
-}
-function formulaAtPointer(field: HTMLElement, clientX: number, clientY: number) {
-  return Array.from(field.children).find((child): child is HTMLElement => {
-    if (!(child instanceof HTMLElement) || !child.dataset.math) return false;
-    const rect = child.getBoundingClientRect();
-    return clientX >= rect.left - 2 && clientX <= rect.right + 12 && clientY >= rect.top - 4 && clientY <= rect.bottom + 4;
-  }) ?? null;
-}
-function pointerDistance(element: HTMLElement, clientX: number, clientY: number) {
-  const rect = element.getBoundingClientRect();
-  return Math.hypot(clientX - (rect.left + rect.width / 2), clientY - (rect.top + rect.height / 2));
-}
-function selectRange(range: Range, target: HTMLElement) {
-  const selection = window.getSelection();
-  target.closest<HTMLElement>(".math-input__field")?.focus();
-  selection?.removeAllRanges();
-  selection?.addRange(range);
-}
-function deleteWithinScope(field: HTMLElement, direction: "backward" | "forward") {
-  const selection = window.getSelection();
-  if (!selection?.rangeCount) return false;
-  const range = selection.getRangeAt(0);
-  const scope = selectionSlot() ?? field;
-  if (!nodeIsInside(scope, range.startContainer) || !nodeIsInside(scope, range.endContainer)) return false;
-
-  if (!range.collapsed) {
-    range.deleteContents();
-    range.collapse(true);
-    selectRange(range, scope);
-    return true;
-  }
-
-  const formula = scope.closest<HTMLElement>("[data-math]");
-  if (formula && formulaIsEmpty(formula)) return removeFormula(formula);
-
-  const directText = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer as Text : null;
-  if (directText) {
-    const visibleStart = directText.data.startsWith(CARET_ANCHOR) ? CARET_ANCHOR.length : 0;
-    const index = direction === "backward" ? range.startOffset - 1 : range.startOffset;
-    if (index >= visibleStart && index < directText.length) return deleteTextCharacter(directText, index);
-  }
-
-  const adjacent = adjacentDeletionUnit(scope, range, direction);
-  if (!adjacent) return false;
-  if (adjacent instanceof HTMLElement && adjacent.dataset.math) return removeFormula(adjacent);
-  if (adjacent.nodeType !== Node.TEXT_NODE) return false;
-  const text = adjacent as Text;
-  const visibleStart = text.data.startsWith(CARET_ANCHOR) ? CARET_ANCHOR.length : 0;
-  const index = direction === "backward" ? text.length - 1 : visibleStart;
-  return index >= visibleStart && index < text.length ? deleteTextCharacter(text, index) : false;
-}
-function nodeIsInside(container: HTMLElement, node: Node) { return node === container || container.contains(node); }
-function formulaIsEmpty(formula: HTMLElement) { return directSlots(formula).every((slot) => deletionUnits(slot).length === 0); }
-function deletionUnits(scope: HTMLElement) {
-  const units: Node[] = [];
-  const visit = (node: Node) => {
-    for (const child of Array.from(node.childNodes)) {
-      if (child instanceof HTMLElement && child.dataset.math) { units.push(child); continue; }
-      if (child.nodeType === Node.TEXT_NODE) {
-        const text = child.textContent ?? "";
-        if (text.slice(text.startsWith(CARET_ANCHOR) ? CARET_ANCHOR.length : 0)) units.push(child);
-        continue;
-      }
-      visit(child);
-    }
-  };
-  visit(scope);
-  return units;
-}
-function adjacentDeletionUnit(scope: HTMLElement, caret: Range, direction: "backward" | "forward") {
-  let closest: Node | null = null;
-  for (const unit of deletionUnits(scope)) {
-    const unitRange = document.createRange();
-    unitRange.selectNode(unit);
-    const comparison = direction === "backward"
-      ? unitRange.compareBoundaryPoints(Range.END_TO_START, caret)
-      : unitRange.compareBoundaryPoints(Range.START_TO_END, caret);
-    if (direction === "backward" && comparison <= 0) closest = unit;
-    if (direction === "forward" && comparison >= 0) return unit;
-  }
-  return closest;
-}
-function deleteTextCharacter(text: Text, index: number) {
-  const parent = text.parentNode;
-  if (!parent) return false;
-  const parentOffset = Array.prototype.indexOf.call(parent.childNodes, text);
-  text.deleteData(index, 1);
-  const range = document.createRange();
-  if (text.length === 0) {
-    text.remove();
-    range.setStart(parent, parentOffset);
-  } else range.setStart(text, index);
-  range.collapse(true);
-  selectRange(range, parent instanceof HTMLElement ? parent : text.parentElement ?? document.body);
-  return true;
-}
-function removeFormula(formula: HTMLElement) {
-  const parent = formula.parentNode;
-  if (!parent) return false;
-  const parentOffset = Array.prototype.indexOf.call(parent.childNodes, formula);
-  const next = formula.nextSibling;
-  formula.remove();
-  if (next?.nodeType === Node.TEXT_NODE && next.textContent?.startsWith(CARET_ANCHOR)) {
-    const text = next as Text;
-    const remainingText = text.data.slice(CARET_ANCHOR.length);
-    if (remainingText) text.data = remainingText;
-    else text.remove();
-  }
-  const range = document.createRange();
-  range.setStart(parent, Math.min(parentOffset, parent.childNodes.length));
-  range.collapse(true);
-  selectRange(range, parent instanceof HTMLElement ? parent : formula.parentElement ?? document.body);
-  return true;
-}
-function normalizeFormulaDom(field: HTMLElement) {
-  const walker = document.createTreeWalker(field, NodeFilter.SHOW_TEXT);
-  const textNodes: Text[] = [];
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) textNodes.push(node as Text);
-  for (const text of textNodes) {
-    const prefix = text.data.startsWith(CARET_ANCHOR) ? CARET_ANCHOR : "";
-    const normalized = cleanFormulaText(text.data.slice(prefix.length));
-    if (text.data !== `${prefix}${normalized}`) text.data = `${prefix}${normalized}`;
-  }
-}
-function insertText(text: string) {
-  const selection = window.getSelection();
-  if (!selection?.rangeCount) return;
-  const range = selection.getRangeAt(0);
-  range.deleteContents();
-  const textNode = document.createTextNode(text);
-  range.insertNode(textNode);
-  range.setStart(textNode, textNode.length);
-  range.collapse(true);
-  selection.removeAllRanges();
-  selection.addRange(range);
-}
-function adjacentMath(direction: "before" | "after") {
-  const selection = window.getSelection();
-  if (!selection?.rangeCount || !selection.isCollapsed) return null;
-  const focus = selection.focusNode;
-  if (!focus) return null;
-  const offset = selection.focusOffset;
-  const candidate = focus.nodeType === Node.TEXT_NODE
-    ? focus.textContent === CARET_ANCHOR ? direction === "before" ? focus.previousSibling : focus.nextSibling : direction === "before" && offset === 0 ? focus.previousSibling : direction === "after" && offset === (focus.textContent?.length ?? 0) ? focus.nextSibling : null
-    : direction === "before" ? focus.childNodes[offset - 1] : focus.childNodes[offset];
-  return candidate instanceof HTMLElement && candidate.dataset.math ? candidate : null;
-}
-function caretAtBoundary(element: HTMLElement, boundary: "start" | "end") {
-  const selection = window.getSelection();
-  if (!selection?.rangeCount || !selection.isCollapsed) return false;
-  const caret = selection.getRangeAt(0);
-  if (!(element.contains(caret.startContainer) || caret.startContainer === element)) return false;
-  const probe = document.createRange();
-  if (boundary === "start") {
-    probe.setStart(element, 0);
-    probe.setEnd(caret.startContainer, caret.startOffset);
-  } else {
-    probe.setStart(caret.startContainer, caret.startOffset);
-    probe.setEnd(element, element.childNodes.length);
-  }
-  return probe.toString().length === 0;
-}
-function caretAtStart(element: HTMLElement) { return caretAtBoundary(element, "start"); }
-function caretAtEnd(element: HTMLElement) { return caretAtBoundary(element, "end"); }
 
 export default MathInput;
