@@ -41,13 +41,16 @@ export function Example() {
 When a row is active, its formula tools let learners insert:
 
 - Square roots: `\sqrt{…}`
-- Nth roots: `\sqrt[n]{…}`
+- Cube roots: `\sqrt[3]{…}`
 - Fractions: `\frac{…}{…}`
 - Powers: `…^{…}`
-- Subscripts: `…_{…}`
 - Brackets: `\left(…\right)`
 
+Subscripts have no button — they are written with `_`. Roots of any other index keep working as well: `\sqrt[n]{…}` is read, edited and written back, it is simply not what the button inserts.
+
 Typing `/` turns the term immediately before the caret into the numerator of a new fraction and moves the caret to its denominator, so `10 /` becomes `\frac{10}{}`. Typing `^` and `_` do the same for powers and subscripts: `10^2` produces `10^{2}` as a *single* object, base included, so the whole power can be selected, deleted or made into a numerator at once. Where a complete formula sits directly before the caret, that formula is what gets taken — `\frac{1}{2}` followed by `/` nests the fraction into a new numerator.
+
+A formula opened in front of written work wraps that work instead of pushing it aside. With the caret at `1/2+|10`, typing `(` gives `\frac{1}{2}+\left(10\right)` with the caret after the `10` and still inside the brackets, so typing carries straight on. Roots and fractions do the same — the slot the caret was going to land in takes the term in front of it, a whole formula included, so `(` typed in front of `\frac{1}{2}` brackets the fraction rather than sitting beside it. Only that one term is taken, leaving the rest of the row alone: `|10+20` with the root button gives `\sqrt{10}+20`. `/` can take a term on each side, `10|5` becoming `\frac{10}{5}`. Where nothing is written in front of the caret the formula opens empty, as before.
 
 Typing `(` opens a bracket pair, which grows to fit whatever is put inside it, and `)` steps back out. Spaces are ignored. Typing `*` shows `×` and emits `\times`. The division key (`/` or `÷`) always starts a fraction rather than leaving a literal slash in the formula.
 
@@ -62,6 +65,20 @@ The editor treats a formula as a navigable object rather than plain text:
 - `Ctrl`/`Cmd`+`Z` undoes and `Shift`+`Ctrl`/`Cmd`+`Z` redoes. A run of typing undoes in one step, and moving the caret ends the run.
 
 Press `Enter` or use the row action to add another formula row. Rows can be removed when more than one exists.
+
+A formula that outgrows its row scrolls sideways, following the caret as it moves. Its scrollbar is drawn over the field rather than inside it, because a native one takes its own height out of the row and would make the row jump the moment the formula got too long — a row only ever changes height for the formula in it. Dragging that bar scrolls its row and nothing else: the row you are editing keeps the focus and the caret, so reading one line never costs you your place in another.
+
+The tools follow the caret and disappear when the editor is left. `autoHideToolbar={false}` keeps them on screen instead, on the row the caret last sat in; using a tool then also puts the caret back into that row.
+
+## Keyboard policy
+
+A keystroke aimed at a formula belongs to the editor alone. Every key the editor takes — printable characters, `Backspace` and `Delete`, `←` `→`, `Home`, `End`, `Enter`, `Escape`, `Ctrl`/`Cmd`+`Z`/`Y`, and anything an IME is composing — stops at the component, press and release alike, so a page that opens a search box on `/` or steps a carousel on `←` does not act on a fraction being typed. The host does not have to guard its own shortcuts against the editor.
+
+Keys the editor has no use for are left completely alone: `Tab` and `Shift`+`Tab` still move focus, and application shortcuts such as `Ctrl`/`Cmd`+`S` still arrive, as do `Ctrl`/`Cmd`+`C`/`V`/`A`, which the field handles natively.
+
+`Escape` leaves the field. It is taken like the rest, so a dialog around the editor closes on the second press — the first one steps out of the formula, the second reaches the dialog.
+
+A host that genuinely needs to watch every keystroke can listen in the capture phase above the editor, which runs before the component sees the event; the demo's keyboard log does exactly that.
 
 ## How it works
 
@@ -87,6 +104,7 @@ Both values can be copied with their respective Copy buttons.
 | `onChange` | Receives the serialized LaTeX value after each edit. |
 | `placeholder` | Text shown for an empty first row. |
 | `disabled` | Disables editing and formula tools. |
+| `autoHideToolbar` | Defaults to `true`: a row's tools appear only while it has focus. Set it to `false` to keep them visible on the row the caret last sat in — the first row until the editor is used. |
 | `className`, `style` | Optional wrapper styling hooks. |
 | `aria-label` | Accessible name for the editor. |
 

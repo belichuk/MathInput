@@ -4,7 +4,7 @@ import {
   isBlank, nextBoundary, normalize, orderedRange, power, previousBoundary, resolve, resolveArray, resolveNode, slotPath, sqrt, stepOf, subscript, text, updateArray, withBranch,
 } from "./model";
 import { cleanFormulaText, parseLatex } from "./parse";
-import { exitBackward, exitForward, nextPosition, previousPosition, rowEnd, rowStart, startOfArray } from "./caret";
+import { endOfArray, exitBackward, exitForward, nextPosition, previousPosition, rowEnd, rowStart, startOfArray } from "./caret";
 
 /**
  * Every editing operation, as a pure function of (row, caret) → (row, caret).
@@ -14,7 +14,7 @@ import { exitBackward, exitForward, nextPosition, previousPosition, rowEnd, rowS
  */
 
 export type RowState = { content: FormulaNode[]; selection: SelectionRange };
-export type CompoundKind = "sqrt" | "nthRoot" | "frac" | "power" | "subscript" | "group";
+export type CompoundKind = "sqrt" | "cubeRoot" | "frac" | "power" | "subscript" | "group";
 
 export type Action =
   | { type: "insertText"; text: string }
@@ -135,6 +135,8 @@ function insertTextAt(content: FormulaNode[], caret: CaretPosition, value: strin
 
 /** What `/`, `^` and `_` swallow: the run of term characters behind the caret, or the whole formula behind it. */
 const TRAILING_TERM = /[A-Za-z0-9.,]+$/;
+/** The same, read forwards: what a formula opened in front of written work wraps. */
+const LEADING_TERM = /^[A-Za-z0-9.,]+/;
 type Capture = { array: FormulaNode[]; index: number; offset: number; term: FormulaNode[] };
 
 function takePrecedingTerm(array: FormulaNode[], index: number, offset: number): Capture {
@@ -152,10 +154,27 @@ function takePrecedingTerm(array: FormulaNode[], index: number, offset: number):
   return { array, index, offset, term: emptyContent() };
 }
 
+/** The mirror of `takePrecedingTerm`: the term the caret sits in front of, taken out to be wrapped. */
+function takeFollowingTerm(array: FormulaNode[], index: number, offset: number): Capture {
+  const value = valueOf(array[index]);
+  const match = LEADING_TERM.exec(value.slice(offset))?.[0];
+  if (match) {
+    return { array: replaceNode(array, index, text(value.slice(0, offset) + value.slice(offset + match.length))), index, offset, term: [text(match)] };
+  }
+  const following = array[index + 1];
+  if (offset === value.length && isCompound(following)) {
+    const after = valueOf(array[index + 2]);
+    return { array: [...array.slice(0, index), text(value + after), ...array.slice(index + 3)], index, offset, term: normalize([following]) };
+  }
+  return { array, index, offset, term: emptyContent() };
+}
+
 const buildNode = (kind: CompoundKind, term: FormulaNode[]): CompoundNode => {
   switch (kind) {
     case "sqrt": return sqrt();
-    case "nthRoot": return sqrt(emptyContent(), emptyContent());
+    // A root of a written index, with the index already written: the general
+    // `\sqrt[n]{…}` is still read and kept, it is just not what this inserts.
+    case "cubeRoot": return sqrt(emptyContent(), [text("3")]);
     case "frac": return frac(term, emptyContent());
     case "power": return power(term, emptyContent());
     case "subscript": return subscript(term, emptyContent());
@@ -172,17 +191,24 @@ function insertCompound(state: RowState, kind: CompoundKind, options: { capture:
     ? takePrecedingTerm(target.array, target.index, caret.offset)
     : { array: target.array, index: target.index, offset: caret.offset, term: emptyContent() };
   const caretBranch = isBlank(captured.term) ? options.emptyCaretBranch ?? options.caretBranch : options.caretBranch;
-  const value = valueOf(captured.array[captured.index]);
+  // The slot the caret is about to land in takes whatever is written directly in front of
+  // it, so brackets, a root or a fraction opened before a term wrap that term rather than
+  // pushing it aside — and the caret waits at the end of it, still inside the new slot.
+  const wrapped = takeFollowingTerm(captured.array, captured.index, captured.offset);
+  const node = buildNode(kind, captured.term);
+  const value = valueOf(wrapped.array[wrapped.index]);
   const arrayPath = arrayPathOf(caret.path);
   const array = [
-    ...captured.array.slice(0, captured.index),
-    text(value.slice(0, captured.offset)),
-    buildNode(kind, captured.term),
-    text(value.slice(captured.offset)),
-    ...captured.array.slice(captured.index + 1),
+    ...wrapped.array.slice(0, wrapped.index),
+    text(value.slice(0, wrapped.offset)),
+    isBlank(wrapped.term) ? node : withBranch(node, caretBranch, wrapped.term),
+    text(value.slice(wrapped.offset)),
+    ...wrapped.array.slice(wrapped.index + 1),
   ];
-  const nodePath: Path = [...arrayPath, { index: captured.index + 1 }];
-  return { content: updateArray(content, arrayPath, () => array), selection: collapsedAt(startOfArray(slotPath(nodePath, caretBranch))) };
+  const nodePath: Path = [...arrayPath, { index: wrapped.index + 1 }];
+  const next = updateArray(content, arrayPath, () => array);
+  const slot = slotPath(nodePath, caretBranch);
+  return { content: next, selection: collapsedAt(isBlank(wrapped.term) ? startOfArray(slot) : endOfArray(next, slot)) };
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +276,7 @@ export function reduce(state: RowState, action: Action): RowState {
     }
     case "insertCompound": {
       const script = action.kind === "power" || action.kind === "subscript";
-      const caretBranch: BranchKey = action.kind === "power" ? "exponent" : action.kind === "subscript" ? "subscript" : action.kind === "frac" ? "numerator" : action.kind === "nthRoot" ? "index" : "content";
+      const caretBranch: BranchKey = action.kind === "power" ? "exponent" : action.kind === "subscript" ? "subscript" : action.kind === "frac" ? "numerator" : "content";
       return insertCompound(state, action.kind, { capture: script, caretBranch });
     }
     case "divide": return insertCompound(state, "frac", { capture: true, caretBranch: "denominator", emptyCaretBranch: "numerator" });

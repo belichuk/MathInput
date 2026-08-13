@@ -118,6 +118,17 @@ button { cursor: pointer; }
 
 .demo-control:last-child { border-bottom: 0; }
 
+.demo-control--toggle {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.demo-control--toggle input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: #4d6f9a;
+}
+
 .demo-range-input { gap: 0.75rem; }
 
 .demo-range-input input {

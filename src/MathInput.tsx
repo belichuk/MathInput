@@ -1,4 +1,4 @@
-import { type CSSProperties, type KeyboardEvent, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { type CompositionEvent as ReactCompositionEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import "./MathInput.css";
 import { type FormulaNode, type SelectionRange, collapsedAt, isBlank, samePosition } from "./model";
 import { rowEnd, rowStart } from "./caret";
@@ -16,6 +16,8 @@ export type MathInputProps = {
   onChange?: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  /** Show a row's tools only while it has focus. Off keeps them on the last used row. */
+  autoHideToolbar?: boolean;
   className?: string;
   style?: CSSProperties;
   "aria-label"?: string;
@@ -24,7 +26,9 @@ export type MathInputProps = {
 type Row = { id: string; content: FormulaNode[] };
 type Caret = { rowId: string; range: SelectionRange } | null;
 type EditorState = { rows: Row[]; caret: Caret };
-type EditorIconName = CompoundKind | "newLine" | "remove";
+/** Subscripts are written with `_` rather than pressed, so they are not among the tools. */
+type ToolKind = Exclude<CompoundKind, "subscript">;
+type EditorIconName = ToolKind | "newLine" | "remove";
 
 const NUMERAL = "M528 432C528 437 526 442 521 445C517 448 512 449 507 447L459 431C451 428 446 419 449 411C452 403 461 398 469 401L496 410V288H464C455 288 448 281 448 272C448 263 455 256 464 256H560C569 256 576 263 576 272C576 281 569 288 560 288H528V432Z";
 const LETTER_X = "M80 384C71 384 64 377 64 368C64 359 71 352 80 352H119L221 192L119 32H80C71 32 64 25 64 16C64 7 71 0 80 0H128C134 0 139 3 142 7L240 162L339 7C341 3 347 0 352 0H400C409 0 416 7 416 16C416 25 409 32 400 32H361L259 192L361 352H400C409 352 416 359 416 368C416 377 409 384 400 384H352C347 384 341 381 339 377L240 222L142 377C139 381 134 384 128 384H80Z";
@@ -34,22 +38,19 @@ function EditorIcon({ name }: { name: EditorIconName }) {
   const glyph = {
     sqrt: { width: 576, paths: [RADICAL] },
     // The same radical, with the index drawn where a root's index sits.
-    nthRoot: { width: 576, paths: [RADICAL], index: true },
+    cubeRoot: { width: 576, paths: [RADICAL], index: "3" },
     frac: { width: 448, paths: ["M248 344C248 357 237 368 224 368C211 368 200 357 200 344C200 331 211 320 224 320C237 320 248 331 248 344ZM168 344C168 375 193 400 224 400C255 400 280 375 280 344C280 313 255 288 224 288C193 288 168 313 168 344ZM0 192C0 201 7 208 16 208H432C441 208 448 201 448 192C448 183 441 176 432 176H16C7 176 0 183 0 192ZM224 16C237 16 248 27 248 40C248 53 237 64 224 64C211 64 200 53 200 40C200 27 211 16 224 16ZM224 96C255 96 280 71 280 40C280 9 255 -16 224 -16C193 -16 168 9 168 40C168 71 193 96 224 96Z"] },
-    // A power and a subscript are the same two glyphs, with the numeral high or low.
     power: { width: 576, paths: [LETTER_X, NUMERAL] },
-    subscript: { width: 576, paths: [LETTER_X], lowered: NUMERAL },
     group: { width: 448, paths: [], brackets: true },
     newLine: { width: 512, paths: ["M480 368C480 377 487 384 496 384C505 384 512 377 512 368V272C512 219 469 176 416 176H55L171 59C178 53 178 43 171 37C165 30 155 30 149 37L5 181C2 184 0 188 0 192C0 196 2 200 5 203L149 347C155 353 165 353 171 347C178 341 178 331 171 325L55 208H416C451 208 480 237 480 272V368Z"] },
     remove: { width: 448, paths: ["M176 432C169 432 163 427 161 421L150 384H299L288 421C286 427 279 432 272 432H176ZM130 430C136 450 155 464 176 464H272C293 464 312 450 318 430L332 384H432C441 384 448 377 448 368C448 359 441 352 432 352H16C7 352 0 359 0 368C0 377 7 384 16 384H116L130 430ZM52 -5 29 304H61L84 -2C85 -19 99 -32 115 -32H333C349 -32 363 -19 364 -2L387 304H419L396 -5C394 -38 366 -64 333 -64H115C82 -64 54 -38 52 -5ZM157 227C163 233 173 233 179 227L224 183L269 227C275 233 285 233 291 227C298 221 298 211 291 205L247 160L291 115C298 109 298 99 291 93C285 86 275 86 269 93L224 137L179 93C173 86 163 86 157 93C151 99 151 109 157 115L201 160L157 205C151 211 151 221 157 227Z"] },
-  }[name] as { width: number; paths: string[]; index?: boolean; lowered?: string; brackets?: boolean };
+  }[name] as { width: number; paths: string[]; index?: string; brackets?: boolean };
 
   return <svg className="math-input__icon" viewBox={`0 -64 ${glyph.width} 512`} fill="currentColor" aria-hidden="true">
     <g transform="translate(0 384) scale(1 -1)">
       {glyph.paths.map((path) => <path key={path} d={path} />)}
-      {glyph.lowered ? <path d={glyph.lowered} transform="translate(0 -270)" /> : null}
     </g>
-    {glyph.index ? <text x="24" y="112" fontSize="230" fontWeight="700" fill="currentColor">n</text> : null}
+    {glyph.index ? <text x="24" y="112" fontSize="230" fontWeight="700" fill="currentColor">{glyph.index}</text> : null}
     {glyph.brackets ? <g stroke="currentColor" strokeWidth="34" strokeLinecap="round" fill="none">
       <path d="M170 0C60 100 60 288 170 384" />
       <path d="M278 0C388 100 388 288 278 384" />
@@ -57,12 +58,11 @@ function EditorIcon({ name }: { name: EditorIconName }) {
   </svg>;
 }
 
-const TOOLS: { kind: CompoundKind; label: string; title: string }[] = [
+const TOOLS: { kind: ToolKind; label: string; title: string }[] = [
   { kind: "sqrt", label: "Insert square root", title: "Square root" },
-  { kind: "nthRoot", label: "Insert nth root", title: "Nth root" },
+  { kind: "cubeRoot", label: "Insert cube root", title: "Cube root" },
   { kind: "frac", label: "Insert fraction", title: "Divide" },
   { kind: "power", label: "Insert power", title: "Power" },
-  { kind: "subscript", label: "Insert subscript", title: "Subscript" },
   { kind: "group", label: "Insert brackets", title: "Brackets" },
 ];
 
@@ -85,19 +85,46 @@ const toRows = (latex: string): Row[] => latex.split("\n").map((line) => ({ id: 
 const sameRange = (first: SelectionRange, second: SelectionRange): boolean => samePosition(first.anchor, second.anchor) && samePosition(first.focus, second.focus);
 
 /** A dependency-free, visual formula editor that emits LaTeX-compatible text. */
-export function MathInput({ value, defaultValue = "", onChange, placeholder = "Write a formula…", disabled = false, className = "", style, "aria-label": ariaLabel = "Math editor" }: MathInputProps) {
+export function MathInput({ value, defaultValue = "", onChange, placeholder = "Write a formula…", disabled = false, autoHideToolbar = true, className = "", style, "aria-label": ariaLabel = "Math editor" }: MathInputProps) {
   const [state, setState] = useState<EditorState>(() => ({ rows: toRows(value ?? defaultValue), caret: null }));
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
+  /** The row the caret last sat in, which keeps the tools when they are not auto-hidden. */
+  const [restingRowId, setRestingRowId] = useState<string | null>(null);
   const fields = useRef(new Map<string, HTMLDivElement>());
   const frame = useRef<HTMLDivElement | null>(null);
   /** Mirrors `state` so event handlers read the current tree without re-subscribing. */
   const live = useRef(state);
   const history = useRef<History<EditorState>>(emptyHistory());
   const composing = useRef(false);
+  /** Keys taken on keydown, so their keyup can be taken too rather than reaching the host. */
+  const consumedKeys = useRef(new Set<string>());
   const pendingFocus = useRef<string | null>(null);
   const published = useRef<string | null>(null);
+  /** Each row's scrollbar thumb, driven through the DOM: scrolling must not re-render the tree. */
+  const thumbs = useRef(new Map<string, HTMLDivElement>());
   const labelId = useId();
   if (published.current === null) published.current = latexOf(state.rows);
+
+  /**
+   * The scrollbar is drawn over the field rather than inside it. A native one takes its
+   * height out of the row, so a row would grow the moment its formula outgrew it and
+   * shrink again on the next backspace; this one shows the same thing and costs nothing.
+   */
+  const syncScrollbar = useCallback((rowId: string) => {
+    const field = fields.current.get(rowId);
+    const thumb = thumbs.current.get(rowId);
+    if (!field || !thumb) return;
+    const hidden = field.scrollWidth - field.clientWidth <= 1;
+    // A very long formula would leave a thumb too small to see, let alone grab.
+    const ratio = Math.max(field.clientWidth / field.scrollWidth, 0.08);
+    const travelled = field.scrollLeft / (field.scrollWidth - field.clientWidth);
+    thumb.style.width = hidden ? "0" : `${ratio * 100}%`;
+    thumb.style.left = hidden ? "0" : `${travelled * (100 - ratio * 100)}%`;
+  }, []);
+
+  const syncScrollbars = useCallback(() => {
+    for (const rowId of fields.current.keys()) syncScrollbar(rowId);
+  }, [syncScrollbar]);
 
   const commit = useCallback((next: EditorState) => {
     live.current = next;
@@ -132,6 +159,12 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     pendingFocus.current = result.snapshot.caret?.rowId ?? null;
     commit(result.snapshot);
   }, [commit]);
+
+  // A toolbar that stays put can be used while its row is not focused, and an edit whose
+  // caret nobody can see is no use, so the row is focused along with it.
+  const focusRow = useCallback((id: string) => {
+    if (document.activeElement !== fields.current.get(id)) pendingFocus.current = id;
+  }, []);
 
   const createRow = useCallback(() => {
     const current = live.current;
@@ -175,6 +208,18 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     if (applySelection(field, caret.range)) scrollCaretIntoView(field);
   });
 
+  // The thumb is a rendering of the field's scroll state, so it follows every edit and
+  // every change of the editor's width, not only the scrolling itself.
+  useLayoutEffect(syncScrollbars);
+
+  useEffect(() => {
+    const container = frame.current;
+    if (!container) return;
+    const observer = new ResizeObserver(syncScrollbars);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [syncScrollbars]);
+
   useLayoutEffect(() => {
     const id = pendingFocus.current;
     const field = id ? fields.current.get(id) : undefined;
@@ -184,14 +229,88 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     if (live.current.caret?.rowId === id) applySelection(field, live.current.caret.range);
   }, [state]);
 
-  // Native listeners, delegated from the frame: beforeinput carries the inputType that
-  // keydown cannot be trusted for on mobile, and composition needs the real events.
+  /**
+   * The three listeners React cannot stand in for. Everything else the editor listens to
+   * — input, composition, scroll, focus, paste, pointers — is an ordinary React prop on
+   * the field below.
+   *
+   * `keydown`/`keyup` because React attaches its listeners at the root of the tree, so a
+   * synthetic `stopPropagation` only runs once the event has already passed every
+   * ancestor between the field and that root. The keyboard policy has to stop a key
+   * before the host can see it, which means stopping it here, at the frame.
+   *
+   * `beforeinput` because React's synthetic version is reconstructed rather than the real
+   * event, and carries no `inputType` — the one property every editing decision is made
+   * from, and the only trustworthy account of what a mobile keyboard just did.
+   */
   useEffect(() => {
     const container = frame.current;
     if (!container) return;
     const fieldOf = (target: EventTarget | null): HTMLElement | null => {
       const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
       return element?.closest<HTMLElement>(".math-input__field") ?? null;
+    };
+
+    /**
+     * The keyboard policy. A key that is part of writing a formula belongs to the editor
+     * alone: it stops here, so the page around it never fires a shortcut on a keystroke
+     * the user aimed at a formula. `preventDefault` is separate, and only for keys the
+     * editor acts on itself — typing and deletion are still performed by `beforeinput`.
+     * Everything the editor has no use for is left untouched: Tab still moves focus, and
+     * application shortcuts such as Cmd/Ctrl+S still reach the application.
+     */
+    const onKeyDown = (event: Event) => {
+      const key = event as KeyboardEvent;
+      const field = fieldOf(key.target);
+      const rowId = field?.dataset.row;
+      if (!field || !rowId || disabled) return;
+      const take = (act: boolean) => {
+        consumedKeys.current.add(key.key);
+        key.stopPropagation();
+        if (act) key.preventDefault();
+      };
+
+      // While an IME is composing, the keystrokes are the editor's but not ours to act on.
+      if (composing.current || key.isComposing) return take(false);
+      if (key.metaKey || key.ctrlKey) {
+        const shortcut = key.key.toLowerCase();
+        if (shortcut === "z") { take(true); restore(key.shiftKey ? "redo" : "undo"); }
+        else if (shortcut === "y") { take(true); restore("redo"); }
+        return; // every other shortcut, including Select All and Copy, stays native
+      }
+      // Escape leaves the field, on the release rather than here — a field that blurred
+      // under the pressed key would send the keyup to the page instead. The host sees
+      // this one no more than the rest, so a dialog around the editor closes on the
+      // second press, once the editor is out.
+      if (key.key === "Escape") return take(true);
+      if (key.shiftKey && key.key.startsWith("Arrow")) return take(false); // native selection extension
+      if (key.key === "ArrowLeft" || key.key === "ArrowRight") {
+        take(true);
+        dispatch(rowId, { type: "move", direction: key.key === "ArrowLeft" ? "backward" : "forward" });
+        return;
+      }
+      if (key.key === "Home" || key.key === "End") {
+        take(true);
+        dispatch(rowId, { type: "moveToEdge", edge: key.key === "Home" ? "start" : "end" });
+        return;
+      }
+      // Shift+Enter reaches the editor as a line break through beforeinput, so that one
+      // is only stopped, not answered here.
+      if (key.key === "Enter") {
+        take(!key.shiftKey);
+        if (!key.shiftKey) createRow();
+        return;
+      }
+      if (key.key.length === 1 || key.key === "Backspace" || key.key === "Delete") take(false);
+    };
+
+    // The release of a key the editor took is taken too: a host counting keyups never
+    // sees half of a keystroke that was never addressed to it.
+    const onKeyUp = (event: Event) => {
+      const key = event as KeyboardEvent;
+      if (!consumedKeys.current.delete(key.key)) return;
+      key.stopPropagation();
+      if (key.key === "Escape") fieldOf(key.target)?.blur();
     };
 
     const onBeforeInput = (event: Event) => {
@@ -213,43 +332,31 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
       dispatch(rowId, keyed ?? { type: "insertText", text: data }, keyed ? "" : `type:${rowId}`);
     };
 
-    const onCompositionStart = () => { composing.current = true; };
-
-    const onCompositionEnd = (event: Event) => {
-      composing.current = false;
-      const field = fieldOf(event.target);
-      const rowId = field?.dataset.row;
-      const row = live.current.rows.find((candidate) => candidate.id === rowId);
-      if (!field || !rowId || !row) return;
-      // Undo the IME's direct DOM edits so React's next render diffs against reality,
-      // then apply the composed text as one ordinary insertion.
-      repairField(field, row.content);
-      const composed = (event as CompositionEvent).data ?? "";
-      if (composed) dispatch(rowId, { type: "insertText", text: composed });
-      else if (live.current.caret) applySelection(field, live.current.caret.range);
-    };
-
-    // Anything that reached the DOM without going through a reducer gets reverted.
-    const onInput = (event: Event) => {
-      if (composing.current) return;
-      const field = fieldOf(event.target);
-      const row = live.current.rows.find((candidate) => candidate.id === field?.dataset.row);
-      if (!field || !row) return;
-      repairField(field, row.content);
-      if (live.current.caret?.rowId === row.id) applySelection(field, live.current.caret.range);
-    };
-
+    container.addEventListener("keydown", onKeyDown);
+    container.addEventListener("keyup", onKeyUp);
     container.addEventListener("beforeinput", onBeforeInput);
-    container.addEventListener("compositionstart", onCompositionStart);
-    container.addEventListener("compositionend", onCompositionEnd);
-    container.addEventListener("input", onInput);
     return () => {
+      container.removeEventListener("keydown", onKeyDown);
+      container.removeEventListener("keyup", onKeyUp);
       container.removeEventListener("beforeinput", onBeforeInput);
-      container.removeEventListener("compositionstart", onCompositionStart);
-      container.removeEventListener("compositionend", onCompositionEnd);
-      container.removeEventListener("input", onInput);
     };
   }, [disabled, dispatch, createRow, restore]);
+
+  /** Undoes whatever reached the DOM without going through a reducer. */
+  const repair = (field: HTMLDivElement, rowId: string) => {
+    const row = live.current.rows.find((candidate) => candidate.id === rowId);
+    if (!row) return;
+    repairField(field, row.content);
+    if (live.current.caret?.rowId === rowId) applySelection(field, live.current.caret.range);
+  };
+
+  const endComposition = (event: ReactCompositionEvent<HTMLDivElement>, rowId: string) => {
+    composing.current = false;
+    // Undo the IME's direct DOM edits so React's next render diffs against reality,
+    // then apply the composed text as one ordinary insertion.
+    repair(event.currentTarget, rowId);
+    if (event.data) dispatch(rowId, { type: "insertText", text: event.data });
+  };
 
   // Native selection gestures — Shift+Arrow, double-click, Select All — are left to the
   // browser and read back here, rather than each being given its own reducer action.
@@ -269,38 +376,46 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     return () => document.removeEventListener("selectionchange", onSelectionChange);
   }, [commit]);
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>, rowId: string) => {
-    if (disabled) return;
-    if (event.metaKey || event.ctrlKey) {
-      const key = event.key.toLowerCase();
-      if (key === "z") { event.preventDefault(); restore(event.shiftKey ? "redo" : "undo"); }
-      else if (key === "y") { event.preventDefault(); restore("redo"); }
-      return; // every other shortcut, including Select All and Copy, stays native
-    }
-    if (event.shiftKey && event.key.startsWith("Arrow")) return; // native selection extension
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-      event.preventDefault();
-      dispatch(rowId, { type: "move", direction: event.key === "ArrowLeft" ? "backward" : "forward" });
-      return;
-    }
-    if (event.key === "Home" || event.key === "End") {
-      event.preventDefault();
-      dispatch(rowId, { type: "moveToEdge", edge: event.key === "Home" ? "start" : "end" });
-      return;
-    }
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      createRow();
-    }
+  /**
+   * Dragging a row's scrollbar scrolls that row and nothing else. Its `mousedown` is
+   * cancelled — the same way the tool buttons cancel theirs — so the row being edited
+   * keeps the focus and the caret: reading one line is no reason to lose your place in
+   * another.
+   */
+  const dragScrollbar = (event: ReactPointerEvent<HTMLDivElement>, rowId: string) => {
+    const field = fields.current.get(rowId);
+    const thumb = event.currentTarget;
+    const track = thumb.parentElement;
+    if (!field || !track || event.button !== 0) return;
+    const from = event.clientX;
+    const scrolled = field.scrollLeft;
+    const travel = track.clientWidth - thumb.offsetWidth;
+    const scale = travel > 0 ? (field.scrollWidth - field.clientWidth) / travel : 0;
+    // Followed on the window rather than the thumb: the pointer leaves a 6px-tall bar the
+    // moment the drag starts, and a captured pointer is not delivered everywhere.
+    const onMove = (move: PointerEvent) => { field.scrollLeft = scrolled + (move.clientX - from) * scale; };
+    const onEnd = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("pointercancel", onEnd);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd);
+    window.addEventListener("pointercancel", onEnd);
   };
+
+  // Which row wears the tools: the focused one, or — when they are pinned — the row the
+  // caret last sat in, falling back to the first so a fresh editor still shows them.
+  const existing = (id: string | null) => (state.rows.some((row) => row.id === id) ? id : null);
+  const toolbarRowId = existing(activeRowId) ?? (autoHideToolbar ? null : existing(restingRowId) ?? state.rows[0].id);
 
   const buttonClass = "math-input__tool";
   return <div className={`math-input ${className}`.trim()} style={style}>
     <div className="math-input__frame" ref={frame} aria-labelledby={labelId}>
       <span id={labelId} className="math-input__visually-hidden">{ariaLabel}</span>
       {state.rows.map((row, index) => <div className="math-input__row" key={row.id}>
-        {activeRowId === row.id && <div className="math-input__toolbar" role="toolbar" aria-label={`Formula tools for row ${index + 1}`}>
-          {TOOLS.map((tool) => <button key={tool.kind} type="button" className={buttonClass} onMouseDown={(event) => event.preventDefault()} onClick={() => dispatch(row.id, { type: "insertCompound", kind: tool.kind })} disabled={disabled} aria-label={tool.label} title={tool.title}><EditorIcon name={tool.kind} /></button>)}
+        {toolbarRowId === row.id && <div className="math-input__toolbar" role="toolbar" aria-label={`Formula tools for row ${index + 1}`}>
+          {TOOLS.map((tool) => <button key={tool.kind} type="button" className={buttonClass} onMouseDown={(event) => event.preventDefault()} onClick={() => { focusRow(row.id); dispatch(row.id, { type: "insertCompound", kind: tool.kind }); }} disabled={disabled} aria-label={tool.label} title={tool.title}><EditorIcon name={tool.kind} /></button>)}
           {state.rows.length > 1 && <button type="button" className="math-input__remove-row" onMouseDown={(event) => event.preventDefault()} onClick={() => removeRow(row.id)} aria-label="Remove formula row" title="Remove"><EditorIcon name="remove" /></button>}
         </div>}
         <div
@@ -322,11 +437,15 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
           data-enable-grammarly="false"
           onFocus={(event) => {
             setActiveRowId(row.id);
+            setRestingRowId(row.id);
             if (live.current.caret?.rowId === row.id) return;
             commit({ rows: live.current.rows, caret: { rowId: row.id, range: selectionFromDom(event.currentTarget) ?? collapsedAt(rowEnd(row.content)) } });
           }}
-          onBlur={() => setActiveRowId(null)}
-          onKeyDown={(event) => onKeyDown(event, row.id)}
+          onBlur={() => { consumedKeys.current.clear(); setActiveRowId(null); }}
+          onScroll={() => syncScrollbar(row.id)}
+          onInput={(event) => { if (!composing.current) repair(event.currentTarget, row.id); }}
+          onCompositionStart={() => { composing.current = true; }}
+          onCompositionEnd={(event) => endComposition(event, row.id)}
           onPaste={(event) => {
             event.preventDefault();
             dispatch(row.id, { type: "insertText", text: event.clipboardData.getData("text") });
@@ -342,7 +461,15 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
             dispatch(row.id, { type: "select", selection: collapsedAt(position) });
           }}
         >{renderNodes(row.content)}</div>
-        {activeRowId === row.id && <button type="button" className="math-input__new-row" onMouseDown={(event) => event.preventDefault()} onClick={createRow} disabled={disabled} aria-label="Add new formula row" title="New line"><EditorIcon name="newLine" /></button>}
+        <div className="math-input__scrollbar" aria-hidden="true">
+          <div
+            className="math-input__scrollbar-thumb"
+            ref={(element) => { if (element) thumbs.current.set(row.id, element); else thumbs.current.delete(row.id); }}
+            onPointerDown={(event) => dragScrollbar(event, row.id)}
+            onMouseDown={(event) => event.preventDefault()}
+          />
+        </div>
+        {toolbarRowId === row.id && <button type="button" className="math-input__new-row" onMouseDown={(event) => event.preventDefault()} onClick={createRow} disabled={disabled} aria-label="Add new formula row" title="New line"><EditorIcon name="newLine" /></button>}
       </div>)}
     </div>
   </div>;

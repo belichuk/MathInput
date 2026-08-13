@@ -100,7 +100,7 @@ describe("toolbar insertion", () => {
   it("inserts an empty formula with the caret in its first slot", () => {
     expect(sketch(apply(rowOf(""), insert("sqrt")))).toBe("\\sqrt{|}");
     expect(sketch(apply(rowOf(""), insert("frac")))).toBe("\\frac{|}{}");
-    expect(sketch(apply(rowOf(""), insert("nthRoot")))).toBe("\\sqrt[|]{}");
+    expect(sketch(apply(rowOf(""), insert("cubeRoot")))).toBe("\\sqrt[3]{|}");
     expect(sketch(apply(rowOf(""), insert("group")))).toBe("\\left(|\\right)");
   });
 
@@ -113,7 +113,40 @@ describe("toolbar insertion", () => {
   });
 
   it("inserts at the caret inside a slot", () => {
-    expect(sketch(apply(rowOf("\\sqrt{12}", inside(1, "content", 0, 1)), insert("frac")))).toBe("\\sqrt{1\\frac{|}{}2}");
+    expect(sketch(apply(rowOf("\\sqrt{12}", inside(1, "content", 0, 1)), insert("frac")))).toBe("\\sqrt{1\\frac{2|}{}}");
+  });
+});
+
+describe("wrapping the term in front of the caret", () => {
+  const insert = (kind: CompoundKind): Action => ({ type: "insertCompound", kind });
+
+  it("wraps what follows in brackets, with the caret left inside them", () => {
+    expect(sketch(apply(rowOf("1+10", top(0, 2)), insert("group")))).toBe("1+\\left(10|\\right)");
+  });
+
+  it("wraps for a root and a fraction as well", () => {
+    expect(sketch(apply(rowOf("1+10", top(0, 2)), insert("sqrt")))).toBe("1+\\sqrt{10|}");
+    expect(sketch(apply(rowOf("1+10", top(0, 2)), insert("cubeRoot")))).toBe("1+\\sqrt[3]{10|}");
+    expect(sketch(apply(rowOf("1+10", top(0, 2)), insert("frac")))).toBe("1+\\frac{10|}{}");
+  });
+
+  it("wraps the whole formula in front of the caret, not a part of it", () => {
+    expect(sketch(apply(rowOf("\\frac{1}{2}", top(0)), insert("group")))).toBe("\\left(\\frac{1}{2}|\\right)");
+  });
+
+  it("takes a term on each side: the one behind for the numerator, the one in front for the denominator", () => {
+    expect(sketch(apply(rowOf("105", top(0, 2)), { type: "divide" }))).toBe("\\frac{10}{5|}");
+    expect(sketch(apply(rowOf("x2", top(0, 1)), { type: "script", kind: "power" }))).toBe("x^{2|}");
+  });
+
+  it("leaves an empty formula where nothing is written in front of the caret", () => {
+    expect(sketch(apply(rowOf("1+", top(0, 2)), insert("group")))).toBe("1+\\left(|\\right)");
+    // An operator is not a term, so a formula opened in front of one stays empty.
+    expect(sketch(apply(rowOf("1+10", top(0, 1)), insert("group")))).toBe("1\\left(|\\right)+10");
+  });
+
+  it("stops at the end of the term, leaving the rest of the row alone", () => {
+    expect(sketch(apply(rowOf("10+20", top(0, 0)), insert("sqrt")))).toBe("\\sqrt{10|}+20");
   });
 });
 

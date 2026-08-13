@@ -153,26 +153,46 @@
   white-space: nowrap;
   caret-color: var(--math-input-accent-color);
   outline: none;
-  scrollbar-width: thin;
-  scrollbar-color: var(--math-input-soft-border-color) transparent;
+  /* The native scrollbar is off because it takes its height out of the row, which makes
+     the row jump the moment a formula outgrows it. `.math-input__scrollbar` below draws
+     the same bar over the field instead, where it costs no height. */
+  scrollbar-width: none;
   mask-image: linear-gradient(to right, black, black calc(100% - 4rem), transparent);
 }
 
 .math-input__field::-webkit-scrollbar {
+  display: none;
+}
+
+/* Over the field, inside its bottom padding: visible, draggable, and worth no height. */
+.math-input__scrollbar {
+  position: absolute;
+  right: calc(var(--math-input-field-padding) + 3.25rem);
+  bottom: 5px;
+  left: var(--math-input-field-padding);
   height: 6px;
+  pointer-events: none;
 }
 
-.math-input__field::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.math-input__field::-webkit-scrollbar-thumb {
-  background: var(--math-input-soft-border-color);
+.math-input__scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  height: 100%;
   border-radius: 999px;
+  background: var(--math-input-soft-border-color);
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  transition: background-color 140ms ease;
 }
 
-.math-input__field::-webkit-scrollbar-thumb:hover {
+.math-input__scrollbar-thumb:hover,
+.math-input__scrollbar-thumb:active {
   background: var(--math-input-control-hover-border);
+}
+
+.math-input__scrollbar-thumb:active {
+  cursor: grabbing;
 }
 
 /* Positioned, not in flow: an empty row still holds the text run the caret lives in,

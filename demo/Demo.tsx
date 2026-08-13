@@ -1,4 +1,4 @@
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { MathInput } from "../src";
 
 type FieldTheme = {
@@ -39,16 +39,36 @@ function RangeControl({ label, value, min, max, unit, onChange }: { label: strin
   </label>;
 }
 
+function ToggleControl({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return <label className="demo-control demo-control--toggle">
+    <span>{label}</span>
+    <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+  </label>;
+}
+
 function formatKey(key: string) { return key === "ArrowRight" ? "Right" : key === " " ? "Space" : key; }
 
 export function Demo() {
   const [latex, setLatex] = useState("");
   const [theme, setTheme] = useState(defaultTheme);
+  const [autoHideToolbar, setAutoHideToolbar] = useState(true);
   const [codeCopied, setCodeCopied] = useState(false);
   const [keyboardLog, setKeyboardLog] = useState<string[]>([]);
+  const canvas = useRef<HTMLElement | null>(null);
   const [rawCopied, setRawCopied] = useState(false);
   const [keysCopied, setKeysCopied] = useState(false);
   const setThemeValue = <Key extends keyof FieldTheme>(key: Key, value: FieldTheme[Key]) => setTheme((current) => ({ ...current, [key]: value }));
+
+  // Captured above the editor, on the way down: MathInput stops every key it takes from
+  // travelling any further, so a listener waiting for them to arrive would hear nothing.
+  useEffect(() => {
+    const log = (event: KeyboardEvent) => {
+      if (canvas.current?.contains(event.target as Node)) setKeyboardLog((keys) => [...keys, event.key]);
+    };
+    document.addEventListener("keydown", log, true);
+    return () => document.removeEventListener("keydown", log, true);
+  }, []);
+
   const mathInputStyle = {
     "--math-input-radius": `${theme.radius}px`,
     "--math-input-border-color": theme.borderColor,
@@ -76,7 +96,7 @@ const fieldStyle = {
 } as CSSProperties;
 
 export function AnswerField() {
-  return <MathInput style={fieldStyle} />;
+  return <MathInput style={fieldStyle}${autoHideToolbar ? "" : " autoHideToolbar={false}"} />;
 }`;
   const copyCode = async () => {
     await navigator.clipboard.writeText(componentCode);
@@ -99,7 +119,7 @@ export function AnswerField() {
       <aside className="demo-customizer" aria-label="Field customization">
         <div className="demo-customizer-heading">
           <p>Field controls</p>
-          <button type="button" onClick={() => setTheme(defaultTheme)}>Reset</button>
+          <button type="button" onClick={() => { setTheme(defaultTheme); setAutoHideToolbar(true); }}>Reset</button>
         </div>
         <RangeControl label="Corner radius" value={theme.radius} min={0} max={32} unit="px" onChange={(value) => setThemeValue("radius", value)} />
         <RangeControl label="Field padding" value={theme.padding} min={8} max={24} unit="px" onChange={(value) => setThemeValue("padding", value)} />
@@ -107,12 +127,13 @@ export function AnswerField() {
         <ColorControl label="Accent" value={theme.accentColor} onChange={(value) => setThemeValue("accentColor", value)} />
         <ColorControl label="Surface" value={theme.surface} onChange={(value) => setThemeValue("surface", value)} />
         <ColorControl label="Formula ink" value={theme.ink} onChange={(value) => setThemeValue("ink", value)} />
+        <ToggleControl label="Auto-hide toolbar" checked={autoHideToolbar} onChange={setAutoHideToolbar} />
       </aside>
 
       <div className="demo-preview-column">
-        <section className="demo-canvas" aria-label="Math editor" onKeyDownCapture={(event) => setKeyboardLog((keys) => [...keys, event.key])}>
-          <MathInput value={latex} onChange={setLatex} placeholder="Type a formula" className="demo-math-input" style={mathInputStyle} />
-          <p className="demo-hint">Press <kbd>Enter</kbd> or use the row action to expand · <kbd>←</kbd> <kbd>→</kbd> moves through a formula · click to its right or press <kbd>End</kbd> to continue after it</p>
+        <section className="demo-canvas" aria-label="Math editor" ref={canvas}>
+          <MathInput value={latex} onChange={setLatex} placeholder="Type a formula" autoHideToolbar={autoHideToolbar} className="demo-math-input" style={mathInputStyle} />
+          <p className="demo-hint">Press <kbd>Enter</kbd> or use the row action to expand · <kbd>←</kbd> <kbd>→</kbd> moves through a formula · click to its right or press <kbd>End</kbd> to continue after it · <kbd>Esc</kbd> leaves the field</p>
         </section>
 
         <section className="demo-code" aria-labelledby="component-code-title">
