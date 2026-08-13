@@ -4,7 +4,7 @@ import {
   isBlank, nextBoundary, normalize, orderedRange, power, previousBoundary, resolve, resolveArray, resolveNode, slotPath, sqrt, stepOf, subscript, text, updateArray, withBranch,
 } from "./model";
 import { cleanFormulaText, parseLatex } from "./parse";
-import { endOfArray, exitBackward, exitForward, nextPosition, previousPosition, rowEnd, rowStart, startOfArray } from "./caret";
+import { endOfArray, exitBackward, exitForward, nextPosition, positionAfterNode, previousPosition, rowEnd, rowStart, startOfArray } from "./caret";
 
 /**
  * Every editing operation, as a pure function of (row, caret) → (row, caret).
@@ -23,7 +23,7 @@ export type Action =
   /** The `/` key: turn the preceding term into a numerator. */
   | { type: "divide" }
   | { type: "script"; kind: "power" | "subscript" }
-  /** `=` steps out of the innermost formula first, so `10^=2` cannot be typed. */
+  /** `=` comes out to the row first, so it always separates whole formulas. */
   | { type: "equals" }
   /** `)` leaves the brackets it is typed in, rather than adding a stray one. */
   | { type: "closeGroup" }
@@ -282,8 +282,11 @@ export function reduce(state: RowState, action: Action): RowState {
     case "divide": return insertCompound(state, "frac", { capture: true, caretBranch: "denominator", emptyCaretBranch: "numerator" });
     case "script": return insertCompound(state, action.kind, { capture: true, caretBranch: action.kind === "power" ? "exponent" : "subscript" });
     case "equals": {
-      const nodePath = isCollapsed(state.selection) ? enclosingNodePath(state.selection.focus.path) : null;
-      if (nodePath) return insertTextAt(state.content, { path: [...arrayPathOf(nodePath), { index: stepOf(nodePath).index + 1 }], offset: 0 }, "=");
+      // `=` separates whole formulas, so it is written between them: typed anywhere
+      // inside one, however deep, it comes out to the row and lands after the whole
+      // thing. The first step of a caret's path names the formula it is somewhere in.
+      const path = state.selection.focus.path;
+      if (isCollapsed(state.selection) && path.length > 1) return insertTextAt(state.content, positionAfterNode([{ index: path[0].index }]), "=");
       const { content, caret } = takeSelection(state);
       return insertTextAt(content, caret, "=");
     }

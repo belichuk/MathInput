@@ -1,7 +1,7 @@
-import { type FormulaNode, type TextNode, frac, group, isText, normalize, power, sqrt, subscript, text } from "./model";
+import { type FormulaNode, type TextNode, TIMES, frac, group, isText, normalize, power, sqrt, subscript, text } from "./model";
 
-/** Formulas never carry whitespace, and `*` is always shown (and stored) as `×`. */
-export const cleanFormulaText = (value: string): string => value.replace(/\s+/g, "").split("*").join("×");
+/** Formulas never carry whitespace, and every way of writing multiplication becomes `⋅`. */
+export const cleanFormulaText = (value: string): string => value.replace(/\s+/g, "").replace(/[*×·]/g, TIMES);
 
 /** What `/`, `^` and `_` treat as "the thing immediately before the caret". */
 const TRAILING_TERM = /[A-Za-z0-9.,]+$/;
@@ -98,9 +98,12 @@ export function parseLatex(line: string): FormulaNode[] {
         else builder.pushText("\\frac");
         continue;
       }
-      if (line.startsWith("\\times", position)) {
-        builder.pushText("×");
-        position += "\\times".length;
+      // `\times` is read as well as `\cdot`, so a formula written elsewhere still opens;
+      // it is shown, and written back, as the dot.
+      const product = ["\\cdot", "\\times"].find((command) => line.startsWith(command, position));
+      if (product) {
+        builder.pushText(TIMES);
+        position += product.length;
         continue;
       }
       if (line[position] === "(" || line.startsWith("\\left(", position)) {

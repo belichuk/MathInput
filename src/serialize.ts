@@ -1,11 +1,11 @@
-import { type FormulaNode } from "./model";
+import { type FormulaNode, TIMES } from "./model";
 
 /**
- * `\times` always takes a trailing space: whatever follows may be a letter — including one
- * that lives in the next node entirely, such as the base of `x_{i}` — and `\timesx` is not
+ * `\cdot` always takes a trailing space: whatever follows may be a letter — including one
+ * that lives in the next node entirely, such as the base of `x_{i}` — and `\cdotx` is not
  * a command. Parsing drops the space again, so the value stays stable across round trips.
  */
-const serializeText = (value: string): string => value.split("×").join("\\times ");
+const serializeText = (value: string): string => value.split(TIMES).join("\\cdot ");
 
 function serializeNode(node: FormulaNode): string {
   switch (node.type) {

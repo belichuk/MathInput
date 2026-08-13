@@ -52,14 +52,14 @@ Typing `/` turns the term immediately before the caret into the numerator of a n
 
 A formula opened in front of written work wraps that work instead of pushing it aside. With the caret at `1/2+|10`, typing `(` gives `\frac{1}{2}+\left(10\right)` with the caret after the `10` and still inside the brackets, so typing carries straight on. Roots and fractions do the same — the slot the caret was going to land in takes the term in front of it, a whole formula included, so `(` typed in front of `\frac{1}{2}` brackets the fraction rather than sitting beside it. Only that one term is taken, leaving the rest of the row alone: `|10+20` with the root button gives `\sqrt{10}+20`. `/` can take a term on each side, `10|5` becoming `\frac{10}{5}`. Where nothing is written in front of the caret the formula opens empty, as before.
 
-Typing `(` opens a bracket pair, which grows to fit whatever is put inside it, and `)` steps back out. Spaces are ignored. Typing `*` shows `×` and emits `\times`. The division key (`/` or `÷`) always starts a fraction rather than leaving a literal slash in the formula.
+Typing `(` opens a bracket pair, which grows to fit whatever is put inside it, and `)` steps back out. Spaces are ignored. Typing `*` shows `⋅` and emits `\cdot`; `\times` is still read, and comes back out as `\cdot`. The division key (`/` or `÷`) always starts a fraction rather than leaving a literal slash in the formula.
 
 The editor treats a formula as a navigable object rather than plain text:
 
 - `→` and `←` step through every slot of a formula in reading order — a power's base before its exponent, a numerator before its denominator, a root's index before its radicand — and then out to the position after (or before) the whole formula.
 - Clicking inside any slot places the caret in that part of the formula.
 - Clicking past a formula's edge, or pressing `End`, continues after it.
-- Typing `=` steps out of the innermost formula it is typed in, avoiding invalid placements such as `10^=2`.
+- Typing `=` comes out to the row before writing itself, so it always separates whole formulas: pressed deep inside `\frac{1}{\frac{1}{2}}` it lands after the outer fraction, never inside a slot, and `10^=2` cannot be typed at all.
 - `Backspace` removes the formula immediately behind the caret as one object, whatever it contains. Inside a slot it deletes normally; at the start of a slot it steps out — into the previous slot, or to just before the formula — leaving the content alone. Only when every slot of a formula is empty does the next `Backspace` remove that formula. `Delete` mirrors all of this forwards. Never more than one thing goes per keypress.
 - A selection spanning two slots deletes the covered part of each and keeps the formula: half a fraction is not a thing.
 - `Ctrl`/`Cmd`+`Z` undoes and `Shift`+`Ctrl`/`Cmd`+`Z` redoes. A run of typing undoes in one step, and moving the caret ends the run.

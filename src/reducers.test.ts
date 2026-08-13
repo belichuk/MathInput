@@ -34,8 +34,8 @@ describe("insertText", () => {
     expect(sketch(apply(rowOf("\\sqrt{}", inside(1, "content", 0)), type("9")))).toBe("\\sqrt{9|}");
   });
 
-  it("shows multiplication as × and ignores spaces", () => {
-    expect(sketch(apply(rowOf(""), type("2"), type("*"), type(" "), type("3")))).toBe("2\\times 3|");
+  it("shows multiplication as a dot and ignores spaces", () => {
+    expect(sketch(apply(rowOf(""), type("2"), type("*"), type(" "), type("3")))).toBe("2\\cdot 3|");
   });
 
   it("replaces the selection it is typed over", () => {
@@ -151,10 +151,19 @@ describe("wrapping the term in front of the caret", () => {
 });
 
 describe("the = key", () => {
-  it("steps out of the innermost formula, not the outermost", () => {
+  it("comes out of every formula it is typed in, however deep", () => {
     // Caret inside the root, which is itself inside the fraction's numerator.
     const state = rowOf("\\frac{\\sqrt{2}}{}", at([{ index: 1, branch: "numerator" }, { index: 1, branch: "content" }, { index: 0 }], 1));
-    expect(sketch(apply(state, { type: "equals" }))).toBe("\\frac{\\sqrt{2}=|}{}");
+    expect(sketch(apply(state, { type: "equals" }))).toBe("\\frac{\\sqrt{2}}{}=|");
+  });
+
+  it("comes out of a fraction nested in a fraction", () => {
+    const state = rowOf("\\frac{1}{\\frac{1}{2}}", at([{ index: 1, branch: "denominator" }, { index: 1, branch: "denominator" }, { index: 0 }], 1));
+    expect(sketch(apply(state, { type: "equals" }))).toBe("\\frac{1}{\\frac{1}{2}}=|");
+  });
+
+  it("writes it after the formula it was in, not at the end of the row", () => {
+    expect(sketch(apply(rowOf("\\frac{1}{2}+3", inside(1, "denominator", 0, 1)), { type: "equals" }))).toBe("\\frac{1}{2}=|+3");
   });
 
   it("types normally when the caret is not inside a formula", () => {

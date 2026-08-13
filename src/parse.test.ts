@@ -3,8 +3,8 @@ import { isNormalized, frac, group, power, sqrt, subscript, text } from "./model
 import { cleanFormulaText, parseLatex } from "./parse";
 
 describe("cleanFormulaText", () => {
-  it("drops whitespace and shows multiplication as ×", () => {
-    expect(cleanFormulaText(" 2 * 3 ")).toBe("2×3");
+  it("drops whitespace and shows multiplication as a dot", () => {
+    expect(cleanFormulaText(" 2 * 3 ")).toBe("2⋅3");
   });
 });
 
@@ -31,9 +31,11 @@ describe("parseLatex", () => {
     expect(parseLatex("1+2")).toEqual([text("1+2")]);
   });
 
-  it("strips whitespace and rewrites * as ×", () => {
-    expect(parseLatex("2 * 3")).toEqual([text("2×3")]);
-    expect(parseLatex("2\\times3")).toEqual([text("2×3")]);
+  it("strips whitespace and rewrites *, × and \\times as the dot", () => {
+    expect(parseLatex("2 * 3")).toEqual([text("2⋅3")]);
+    expect(parseLatex("2 × 3")).toEqual([text("2⋅3")]);
+    expect(parseLatex("2\\times3")).toEqual([text("2⋅3")]);
+    expect(parseLatex("2\\cdot3")).toEqual([text("2⋅3")]);
   });
 
   it("reads roots, fractions and groups", () => {

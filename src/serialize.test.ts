@@ -17,11 +17,11 @@ describe("serializeToLatex", () => {
     expect(serializeToLatex(parseLatex("\\sqrt{9+16}+10^{2}-\\frac{1}{2}"))).toBe("\\sqrt{9+16}+10^{2}-\\frac{1}{2}");
   });
 
-  it("writes × as \\times, always separated from what follows", () => {
-    expect(serializeToLatex([text("2×3")])).toBe("2\\times 3");
-    expect(serializeToLatex([text("2×x")])).toBe("2\\times x");
+  it("writes the dot as \\cdot, always separated from what follows", () => {
+    expect(serializeToLatex([text("2⋅3")])).toBe("2\\cdot 3");
+    expect(serializeToLatex([text("2⋅x")])).toBe("2\\cdot x");
     // The next node's base would otherwise run into the command name.
-    expect(serializeToLatex([text("2×"), subscript([text("x")], [text("i")]), text("")])).toBe("2\\times x_{i}");
+    expect(serializeToLatex([text("2⋅"), subscript([text("x")], [text("i")]), text("")])).toBe("2\\cdot x_{i}");
   });
 
   it("keeps empty slots as empty groups", () => {
@@ -39,7 +39,7 @@ function createRandom(seed: number) {
   };
 }
 
-const SAFE_CHARACTERS = "0123456789xyab+-=.,×";
+const SAFE_CHARACTERS = "0123456789xyab+-=.,⋅";
 type Random = () => number;
 const pick = <Item,>(random: Random, items: readonly Item[]): Item => items[Math.floor(random() * items.length)];
 

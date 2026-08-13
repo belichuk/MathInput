@@ -26,6 +26,9 @@ export type Path = PathStep[];
 export type CaretPosition = { path: Path; offset: number };
 export type SelectionRange = { anchor: CaretPosition; focus: CaretPosition };
 
+/** Multiplication as it is stored and shown: a dot, `\cdot`, never a cross. */
+export const TIMES = "⋅";
+
 export const text = (value = ""): TextNode => ({ type: "text", value });
 export const emptyContent = (): FormulaNode[] => [text()];
 export const sqrt = (content = emptyContent(), index: FormulaNode[] | null = null): SqrtNode => ({ type: "sqrt", index, content });
