@@ -124,6 +124,8 @@ Both values can be copied with their respective Copy buttons.
 
 - `demo/` contains the Vite entry point, global demo styles, and the example page.
 
+- `CHANGELOG.md` records what changed in each version, and what is deliberately still open.
+
 ## Tests
 
 ```sh
