@@ -41,23 +41,33 @@ export function Example() {
 When a row is active, its formula tools let learners insert:
 
 - Square roots: `\sqrt{…}`
+- Nth roots: `\sqrt[n]{…}`
 - Fractions: `\frac{…}{…}`
-- Powers: `^{…}`
+- Powers: `…^{…}`
+- Subscripts: `…_{…}`
+- Brackets: `\left(…\right)`
 
-Typing `/` converts the immediately preceding number or term into the numerator of a new fraction and moves the caret to its denominator. For example, `10 /` becomes `\frac{10}{}`.
+Typing `/` turns the term immediately before the caret into the numerator of a new fraction and moves the caret to its denominator, so `10 /` becomes `\frac{10}{}`. Typing `^` and `_` do the same for powers and subscripts: `10^2` produces `10^{2}` as a *single* object, base included, so the whole power can be selected, deleted or made into a numerator at once. Where a complete formula sits directly before the caret, that formula is what gets taken — `\frac{1}{2}` followed by `/` nests the fraction into a new numerator.
 
-Spaces are ignored. Typing `*` shows `×` and emits `\times`; typing `^` opens a power placeholder at the caret. The division key (`/` or `÷`) always starts a fraction rather than leaving a literal slash in the formula.
+Typing `(` opens a bracket pair, which grows to fit whatever is put inside it, and `)` steps back out. Spaces are ignored. Typing `*` shows `×` and emits `\times`. The division key (`/` or `÷`) always starts a fraction rather than leaving a literal slash in the formula.
 
 The editor treats a formula as a navigable object rather than plain text:
 
-- `→` moves from a numerator to its denominator, then to the position after the formula.
-- `←` moves back through the same positions.
-- Clicking inside a numerator, denominator, radical, or power places the caret in that part of the formula.
-- Clicking immediately to the right of a formula, or pressing `End`, continues after it.
-- Typing `=` while inside a formula places it after the whole formula, avoiding invalid placements such as `10^=2`.
-- `Backspace` and `Delete` act only in the current slot (or immediately adjacent formula at the row level). Once every slot of a root, fraction, or power is empty, the next destructive key removes that template as one object.
+- `→` and `←` step through every slot of a formula in reading order — a power's base before its exponent, a numerator before its denominator, a root's index before its radicand — and then out to the position after (or before) the whole formula.
+- Clicking inside any slot places the caret in that part of the formula.
+- Clicking past a formula's edge, or pressing `End`, continues after it.
+- Typing `=` steps out of the innermost formula it is typed in, avoiding invalid placements such as `10^=2`.
+- `Backspace` removes the formula immediately behind the caret as one object, whatever it contains. Inside a slot it deletes normally; at the start of a slot it steps out — into the previous slot, or to just before the formula — leaving the content alone. Only when every slot of a formula is empty does the next `Backspace` remove that formula. `Delete` mirrors all of this forwards. Never more than one thing goes per keypress.
+- A selection spanning two slots deletes the covered part of each and keeps the formula: half a fraction is not a thing.
+- `Ctrl`/`Cmd`+`Z` undoes and `Shift`+`Ctrl`/`Cmd`+`Z` redoes. A run of typing undoes in one step, and moving the caret ends the run.
 
 Press `Enter` or use the row action to add another formula row. Rows can be removed when more than one exists.
+
+## How it works
+
+The editor is structure-first: each row is a typed tree (text runs, roots, fractions, powers, subscripts, brackets) held in React state, and the contentEditable DOM is a rendering of that tree rather than the source of truth. Keystrokes are intercepted and run through pure reducers that edit the tree, React re-renders, and the caret — a plain `{path, offset}` value — is written back into a DOM range afterwards.
+
+Two properties fall out of this. Caret questions like "is this the end of the slot?" are array index comparisons rather than DOM boundary-point comparisons, which is a class of bug the editor can no longer have. And every editing operation is a pure function, so the behaviour above is covered by unit tests rather than only by clicking around.
 
 ## Debugging aids
 
@@ -82,8 +92,31 @@ Both values can be copied with their respective Copy buttons.
 
 ## Project structure
 
-- `src/` contains the reusable `MathInput` component and its public exports.
+- `src/` contains the reusable `MathInput` component, its public exports, and the pure modules it is built from:
+
+  | File | Responsibility |
+  | --- | --- |
+  | `model.ts` | The formula tree: node types, the alternating-array invariant, path arithmetic. |
+  | `parse.ts`, `serialize.ts` | LaTeX in and out. |
+  | `caret.ts` | Caret movement over the tree. |
+  | `reducers.ts` | Every editing operation, as `(row, caret) → (row, caret)`. |
+  | `render.tsx` | The tree as JSX, with each element tagged by the position it stands for. |
+  | `selection.ts` | The only code that touches DOM `Range`/`Selection`. |
+  | `history.ts` | Undo/redo. |
+
 - `demo/` contains the Vite entry point, global demo styles, and the example page.
+
+## Tests
+
+```sh
+npm test
+```
+
+Everything except `selection.ts` is pure and directly tested — the parser's fallbacks, a
+round-trip property corpus, caret navigation, and each editing behaviour listed above.
+Tests also assert the tree's invariant and a valid caret after *every* reduction, so a
+reducer cannot quietly leave the document in a state the rest of the editor assumes away.
+DOM range mapping, pointer targeting and IME are verified in a browser instead.
 
 ## Styling and CSS variables
 

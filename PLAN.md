@@ -1,5 +1,38 @@
 # MathInput: structured document model rewrite
 
+## Status: shipped
+
+All stages below are done and the old DOM-mutation implementation is deleted. Five
+decisions were taken that differ from this draft, and the sections further down are kept
+as written so the reasoning behind them stays readable — where they conflict, this list wins.
+
+1. **Powers and subscripts own their base.** `PowerNode` is `{base, exponent}` rather than
+   an exponent alone, so `10^{2}` is one object that can be selected, deleted or captured
+   as a whole. Typing `^` takes the preceding term the same way `/` does. `SubscriptNode`
+   mirrors it, and the two nest, so `x_{i}^{2}` is a power whose base is a subscript.
+2. **Three more node types**: `\sqrt[n]{}`, `x_{n}` and auto-sizing `\left(…\right)`.
+3. **Two behaviours were fixed rather than preserved.** Backspace at the start of a slot
+   whose siblings still hold content now steps the caret out instead of doing nothing, and
+   a selection spanning two slots really deletes, trimming each slot and keeping the
+   formula. Everything else in "Behaviors that must be preserved exactly" was kept.
+4. **Undo/redo and IME/mobile support were added**, neither of which existed before.
+   Keyboard selection (Shift+Arrow, Select All) was deliberately *not* given reducer
+   actions: those gestures stay native and are read back on `selectionchange`.
+5. **Empty text runs render a zero-width character.** Measured in Chrome: a range inside an
+   empty element has no client rects at all, so the caret cannot go there. This is the
+   structural replacement for `CARET_ANCHOR` — a function of the tree, not DOM stitching.
+
+Two things worth knowing that the draft did not anticipate: React owning the children of a
+contentEditable makes injected nodes from writing-assistant extensions a real hazard, so
+the field opts out of them; and `\times` needs a trailing separator because the character
+after it may live in a different node entirely, which the round-trip property test caught
+on its first run.
+
+Still open, deliberately: paste is still flattened to plain text rather than parsed; a
+formula immediately behind the caret is still deleted whole by one Backspace rather than
+being stepped into; and Backspace at the very start of a row does not merge it into the
+previous row.
+
 ## Context
 
 Today `src/MathInput.tsx` (624 lines, everything in one file) treats the **live contentEditable DOM as the source of truth**. React `rows` state only holds `{id, text}` as a one-time seed for `dangerouslySetInnerHTML` on mount; every edit — typing, arrow-key navigation, Backspace, inserting a fraction/root/power — directly mutates the live DOM via `Range`/`Selection` Web APIs, and the LaTeX value is only reconstructed by walking that DOM (`latexFrom`) when `onChange` needs to fire. An invisible hair-space character (`CARET_ANCHOR`) is stitched into the DOM after every formula purely so the caret has somewhere native to land, because there's no real state-based caret tracking.
