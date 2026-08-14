@@ -2,6 +2,17 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
+## 0.3.1 — 2026-08-14
+
+Documentation only. The component, its build and its published files are unchanged; this release exists so the package page shows the new README.
+
+### Changed
+
+- The README is written for someone using the component rather than someone working on it. It opens with what the field is and a picture of it, and documents every option where you would look for it: props with their types and defaults, then controlled and uncontrolled use, rows as the shape of a worked solution, pinning the tools, and read-only.
+- Everything that can be typed is a key-by-key table, every CSS custom property is listed with its default, and the emitted value is shown construct by construct.
+- Three screenshots of the running editor, so both npm and GitHub show what it looks like before anyone installs it.
+- Accessibility has its own section, including what it does not do yet: a formula's structure is not announced to a screen reader beyond the text inside it.
+
 ## 0.3.0 — 2026-08-13
 
 The component becomes a package. It was previously consumed by importing `./src` out of a checkout; it now installs from npm, builds to `dist/` on its own, and is released by pushing a tag.
