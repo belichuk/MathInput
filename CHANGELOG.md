@@ -2,17 +2,23 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
-## 0.3.1 — 2026-08-14
+## 0.3.3 — 2026-08-14
 
-Documentation and repository layout. The published files are byte-for-byte what 0.3.0 shipped; this release exists so the package page shows the new README.
+Documentation and repository layout. The published `dist/` is byte-for-byte what 0.3.0 shipped; this release exists so the package page carries the documentation.
 
 ### Changed
 
-- The README is written for someone using the component rather than someone working on it. It opens with what the field is and a picture of it, and documents every option where you would look for it: props with their types and defaults, then controlled and uncontrolled use, rows as the shape of a worked solution, pinning the tools, and read-only.
+- The README is written for someone using the component rather than someone working on it. It opens with what the field is and a picture of it, and documents every option where you would look for it: props with their types and defaults, controlled and uncontrolled use, rows as the shape of a worked solution, pinning the tools, and read-only.
+- Recipes for what comes after the first render: a form — `Enter` adds a row and never submits, so the button matters — loading and clearing, showing an answer without letting it be edited, and a page of fields.
 - Everything that can be typed is a key-by-key table, every CSS custom property is listed with its default, and the emitted value is shown construct by construct.
-- Three screenshots of the running editor, so both npm and GitHub show what it looks like before anyone installs it.
+- Size, measured rather than claimed: 11.9 kB of JavaScript and 2.0 kB of CSS, gzipped, with React external. There is nothing to tree-shake off a single-entry component, the build is already minified — forcing `minify: "esbuild"` over the default makes it 3% larger — and the tarball is bigger than any of it only because of the CommonJS build, the maps and the types, none of which reach a user.
+- What each framework needs: `"use client"` under Next, nothing for the usual bundlers, and for Jest a CSS stub only if your own code imports the stylesheet.
+- Browser support, including a trap worth knowing before it bites: rows are identified with `crypto.randomUUID`, which browsers only expose in a secure context, so a plain `http://` LAN address used to test on a phone will not do.
 - Accessibility has its own section, including what it does not do yet: a formula's structure is not announced to a screen reader beyond the text inside it.
+- Three screenshots of the running editor, so npm and GitHub both show what it looks like before anyone installs it.
 - The repository root is about the package now: `vite.config.ts` builds and tests the component, and everything the demo needs — its `index.html`, its entry and its own Vite config — lives in `demo/`. `tsconfig.json` type-checks the whole repository rather than `src` alone, so the demo and the config files are covered too, and `npm run typecheck` runs it in CI.
+
+0.3.1 and 0.3.2 were never published; this work was written under the first of them and released as 0.3.3.
 
 ## 0.3.0 — 2026-08-13
 

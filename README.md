@@ -360,19 +360,6 @@ The demo — sliders and colour pickers for the CSS variables above, the live La
 
 Everything except `selection.ts` is pure and directly tested — the parser's fallbacks, a round-trip property corpus, caret navigation, and each editing behaviour above. Tests also assert the tree's invariant and a valid caret after *every* reduction, so a reducer cannot quietly leave the document in a state the rest of the editor assumes away. DOM range mapping, pointer targeting and IME are verified in a browser instead.
 
-## Releasing
-
-A release is a tag. Bump `version` in `package.json`, write that version's section of `CHANGELOG.md`, commit, then:
-
-```sh
-git tag v0.3.1
-git push origin v0.3.1
-```
-
-`.github/workflows/release.yml` takes it from there: it refuses a tag that disagrees with `package.json` or has no section in the changelog, runs the tests, builds the package, publishes it to npm with provenance, and opens a GitHub release whose notes are that changelog section, with the tarball attached. A version with a suffix — `v1.0.0-rc.1` — is marked a prerelease.
-
-Publishing needs one secret in the repository's settings: `NPM_TOKEN`, a token allowed to bypass 2FA — an npm **automation** token, or a granular token with that option enabled and read-and-write on the `@belichuk` scope.
-
 ## License
 
 MIT © Nikolay Belichuk
