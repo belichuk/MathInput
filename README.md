@@ -4,7 +4,7 @@
 [![CI](https://github.com/belichuk/MathInput/actions/workflows/ci.yml/badge.svg)](https://github.com/belichuk/MathInput/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/@belichuk/math-input)](./LICENSE)
 
-A React field for writing mathematics the way it is written on paper — one formula per line, fractions stacked, roots drawn over what they cover — that hands your app KaTeX-compatible LaTeX as the value. No dependencies beyond React, no Tailwind, no MathJax, no `dangerouslySetInnerHTML`. It does not evaluate or check what is written; it is an input, not a calculator.
+A React field for writing mathematics the way it is written on paper — one formula per line, fractions stacked, roots drawn over what they cover — that hands your app KaTeX-compatible LaTeX as the value. No runtime dependencies beyond React: no Tailwind, no MathJax, no editor framework. It does not evaluate or check what is written; it is an input, not a calculator.
 
 ![The field, with its formula tools, showing ½x² + √16 = 12](https://raw.githubusercontent.com/belichuk/MathInput/main/docs/images/field.png)
 
@@ -27,19 +27,19 @@ import { useState } from "react";
 import { MathInput } from "@belichuk/math-input";
 
 export function AnswerField() {
-  const [latex, setLatex] = useState("");
+  const [value, setValue] = useState("");
 
   return (
     <MathInput
-      value={latex}
-      onChange={setLatex}
+      value={value}
+      onChange={setValue}
       placeholder="Show your working…"
     />
   );
 }
 ```
 
-`latex` is a plain string — `\frac{1}{2}x^{2}+\sqrt{16}=12` for the screenshot above — ready to store, mark, or render with KaTeX.
+`value` is a plain string — `\frac{1}{2}x^{2}+\sqrt{16}=12` for the screenshot above — ready to store, mark, or render with KaTeX.
 
 ## Props
 
@@ -62,7 +62,7 @@ Everything is optional; `<MathInput />` on its own is a working uncontrolled fie
 Pass `value` and `onChange` to own the state, or `defaultValue` and let the field keep its own:
 
 ```tsx
-<MathInput value={latex} onChange={setLatex} />   // controlled
+<MathInput value={value} onChange={setValue} />      // controlled
 <MathInput defaultValue="x^{2}+1" onChange={save} />  // uncontrolled, still reports edits
 ```
 
@@ -184,6 +184,106 @@ Each row is serialized as a line of LaTeX and joined with `\n`. What comes out p
 | two times three | `2\cdot 3` |
 
 Input is read more loosely than it is written: `\times` and `×` both arrive as `⋅`, `\sqrt[n]{…}` of any index is kept and remains editable, and malformed input is tolerated rather than rejected — a command with no group falls back to its own text, and an unclosed group is treated as closed.
+
+## Recipes
+
+### In a form
+
+`Enter` adds a row and never submits the form around it, so a submit button is the way out:
+
+```tsx
+export function AnswerForm({ onSubmit }: { onSubmit: (value: string) => void }) {
+  const [value, setValue] = useState("");
+
+  return (
+    <form onSubmit={(event) => { event.preventDefault(); onSubmit(value); }}>
+      <MathInput value={value} onChange={setValue} aria-label="Your answer" />
+      <button type="submit" disabled={value.trim() === ""}>Submit</button>
+    </form>
+  );
+}
+```
+
+`value` is just a string, so the usual form libraries need nothing special — `<Controller>` in React Hook Form, `<Field>` in Formik, or your own state.
+
+### Loading, resetting, and clearing
+
+Because a controlled `value` you did not just receive from `onChange` replaces the content, all three are ordinary state changes:
+
+```tsx
+useEffect(() => setValue(saved ?? ""), [saved]);          // load a stored answer
+<button type="button" onClick={() => setValue("")}>Clear</button>
+```
+
+### Showing an answer without letting it be edited
+
+The cheapest way is the component you already have — no second rendering path, and no extra dependency:
+
+```tsx
+<MathInput value={submitted} disabled aria-label="Submitted answer" />
+```
+
+If you would rather render it as static mathematics — in a PDF, an email, a page that never loads the editor — the value is ordinary LaTeX, so KaTeX takes it directly:
+
+```tsx
+import { useEffect, useRef } from "react";
+import katex from "katex";
+import "katex/dist/katex.min.css";
+
+export function Rendered({ value }: { value: string }) {
+  const host = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (host.current) katex.render(value, host.current, { throwOnError: false });
+  }, [value]);
+
+  return <div ref={host} />;
+}
+```
+
+For several rows, split on `\n` and render each line into its own element.
+
+### Several fields on a page
+
+Nothing needs coordinating, and the default `autoHideToolbar` keeps a page of fields quiet — only the focused one shows its tools. Give each an `aria-label` so they are distinguishable:
+
+```tsx
+{questions.map((question) => (
+  <MathInput
+    key={question.id}
+    value={answers[question.id] ?? ""}
+    onChange={(value) => setAnswer(question.id, value)}
+    aria-label={`Answer to question ${question.number}`}
+  />
+))}
+```
+
+## Size
+
+What a browser downloads, for the component as it stands:
+
+| | Raw | Gzipped |
+| --- | --- | --- |
+| `math-input.js` (ESM) | 39.6 kB | **11.9 kB** |
+| `math-input.css` | 7.2 kB | **2.0 kB** |
+
+About 14 kB gzipped in total, with React the only thing it expects to already be there. For comparison, KaTeX alone is an order of magnitude larger, and this is a whole editor.
+
+There is nothing to tree-shake off: one entry, one component, and every module behind it is on the path from typing a key to seeing a formula. The build is already minified — forcing `minify: "esbuild"` instead of the default makes it 3% *bigger* — and `sideEffects` is declared, so a bundler is free to drop the stylesheet if you never import it.
+
+The npm tarball is larger than the numbers above (~107 kB) because it also carries the CommonJS build, source maps and type declarations. None of that reaches your users; bundlers take the ESM build and leave the rest.
+
+## Frameworks
+
+- **Next.js and other server-rendered apps** — the editor is a browser thing: it owns a `contentEditable`, and reads and writes DOM ranges. Put `"use client"` at the top of the file that renders it. Server rendering the markup is fine; the caret work starts on mount.
+- **Vite, webpack, Parcel, Rspack** — nothing to configure. The package is ESM with a CommonJS build alongside it, and the stylesheet is a separate import.
+- **Jest** — the CommonJS build means `require` works without transform configuration. If your own code imports `@belichuk/math-input/styles.css`, Jest needs a stub for it like any other CSS import (`moduleNameMapper`). Vitest needs nothing.
+
+## Browser support
+
+Current Chrome, Edge, Safari and Firefox, on desktop and mobile. The editor is built on `beforeinput` and its `inputType` — which is also what makes mobile keyboards work, where `keydown` cannot be trusted — plus DOM ranges, `ResizeObserver` and pointer events.
+
+One thing to know: rows are identified with `crypto.randomUUID`, which browsers only expose in a **secure context**. That covers `https://` and `localhost`, but not a plain `http://` origin such as a LAN address you might use to test on a phone. Serve over HTTPS there.
 
 ## Accessibility
 
