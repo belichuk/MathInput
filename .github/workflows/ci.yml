@@ -28,11 +28,14 @@ jobs:
 
       - run: npm ci
 
+      # The whole repository, the demo and the config files included — the package
+      # build below only type-checks what ships.
+      - name: Type-check
+        run: npm run typecheck
+
       - name: Test
         run: npm test
 
-      # Type-checks the source as well as bundling it: the declaration build is
-      # `tsc` over `src`, so a type error fails here rather than at release time.
       - name: Build the package
         run: npm run build
 

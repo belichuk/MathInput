@@ -1,0 +1,16 @@
+import { defineConfig } from "vite";
+
+/**
+ * The demo site — a style laboratory for developing the component against, and the
+ * first look at it. It is not shipped, so it keeps its own root, entry and output,
+ * and the package's config at the repository root stays about the package.
+ */
+export default defineConfig({
+  // This file's own directory: a relative root would resolve against the working
+  // directory instead, which is not where the demo lives.
+  root: import.meta.dirname,
+  build: {
+    outDir: "../dist-demo",
+    emptyOutDir: true,
+  },
+});

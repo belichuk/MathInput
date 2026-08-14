@@ -4,7 +4,7 @@ What changed in each version of the component. Versions follow [semantic version
 
 ## 0.3.1 — 2026-08-14
 
-Documentation only. The component, its build and its published files are unchanged; this release exists so the package page shows the new README.
+Documentation and repository layout. The published files are byte-for-byte what 0.3.0 shipped; this release exists so the package page shows the new README.
 
 ### Changed
 
@@ -12,6 +12,7 @@ Documentation only. The component, its build and its published files are unchang
 - Everything that can be typed is a key-by-key table, every CSS custom property is listed with its default, and the emitted value is shown construct by construct.
 - Three screenshots of the running editor, so both npm and GitHub show what it looks like before anyone installs it.
 - Accessibility has its own section, including what it does not do yet: a formula's structure is not announced to a screen reader beyond the text inside it.
+- The repository root is about the package now: `vite.config.ts` builds and tests the component, and everything the demo needs — its `index.html`, its entry and its own Vite config — lives in `demo/`. `tsconfig.json` type-checks the whole repository rather than `src` alone, so the demo and the config files are covered too, and `npm run typecheck` runs it in CI.
 
 ## 0.3.0 — 2026-08-13
 

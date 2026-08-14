@@ -225,26 +225,38 @@ Two properties fall out of this. Caret questions like "is this the end of the sl
 
 ```sh
 npm install
-npm run dev     # the demo, at localhost:5173
-npm test
-npm run build   # the package: dist/math-input.js, .cjs, .css and dist/types
+npm run dev       # the demo, at localhost:5173
+npm test          # or test:watch
+npm run typecheck # the whole repository, demo and configs included
+npm run build     # the package: dist/math-input.js, .cjs, .css and dist/types
+npm run build:demo
 ```
 
-The demo is a style laboratory — sliders and colour pickers for the CSS variables above, the live LaTeX value, and a log of every key pressed — for developing against and for a first look. It is not part of what ships; `npm run build:demo` builds it into `dist-demo/` if you want to host it.
+The repository is laid out so that the root is about the package and the demo owns itself:
 
-- `src/` is the component and the pure modules it is built from:
+```
+src/            the component, and the pure modules it is built from
+demo/           the style laboratory: page, entry, index.html, its own vite.config.ts
+scripts/        build helpers
+docs/images/    the screenshots in this file
+vite.config.ts  builds and tests the package — the default config is the product
+tsconfig.json   type-checks everything; tsconfig.build.json emits what ships
+```
 
-  | File | Responsibility |
-  | --- | --- |
-  | `model.ts` | The formula tree: node types, the alternating-array invariant, path arithmetic. |
-  | `parse.ts`, `serialize.ts` | LaTeX in and out. |
-  | `caret.ts` | Caret movement over the tree. |
-  | `reducers.ts` | Every editing operation, as `(row, caret) → (row, caret)`. |
-  | `render.tsx` | The tree as JSX, with each element tagged by the position it stands for. |
-  | `selection.ts` | The only code that touches DOM `Range`/`Selection`. |
-  | `history.ts` | Undo/redo. |
+The demo — sliders and colour pickers for the CSS variables above, the live LaTeX value, and a log of every key pressed — is for developing against and for a first look. It is not part of what ships: `files` in `package.json` is `dist` alone, and `npm run build:demo` puts the site in `dist-demo/` if you want to host it.
 
-- `demo/` is the Vite entry point and the example page. `CHANGELOG.md` records what changed in each version, and what is deliberately still open.
+| `src/` file | Responsibility |
+| --- | --- |
+| `model.ts` | The formula tree: node types, the alternating-array invariant, path arithmetic. |
+| `parse.ts`, `serialize.ts` | LaTeX in and out. |
+| `caret.ts` | Caret movement over the tree. |
+| `reducers.ts` | Every editing operation, as `(row, caret) → (row, caret)`. |
+| `render.tsx` | The tree as JSX, with each element tagged by the position it stands for. |
+| `selection.ts` | The only code that touches DOM `Range`/`Selection`. |
+| `history.ts` | Undo/redo. |
+| `MathInput.tsx` | Props, state, events, and the chrome around the rows. |
+
+`CHANGELOG.md` records what changed in each version, and what is deliberately still open.
 
 Everything except `selection.ts` is pure and directly tested — the parser's fallbacks, a round-trip property corpus, caret navigation, and each editing behaviour above. Tests also assert the tree's invariant and a valid caret after *every* reduction, so a reducer cannot quietly leave the document in a state the rest of the editor assumes away. DOM range mapping, pointer targeting and IME are verified in a browser instead.
 
