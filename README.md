@@ -53,6 +53,8 @@ Everything is optional; `<MathInput />` on its own is a working uncontrolled fie
 | `placeholder` | `string` | `"Write a formula…"` | Shown in a row while it is empty. |
 | `disabled` | `boolean` | `false` | Nothing can be typed and the tools stop responding. The formula stays readable and selectable. |
 | `autoHideToolbar` | `boolean` | `true` | Tools appear on the focused row only. `false` keeps them on the row the caret last sat in. |
+| `showOperators` | `boolean` | `true` | The `+` `−` `:` `⋅` group. `false` for a field only ever filled in from a keyboard. |
+| `showNavigation` | `boolean` | `true` | The `←` `→` group, which moves the caret exactly as the arrow keys do. |
 | `className` | `string` | `""` | Added to the wrapper element. |
 | `style` | `CSSProperties` | — | Wrapper style, and where the CSS variables below go. |
 | `aria-label` | `string` | `"Math editor"` | The editor's accessible name; each row is named from it too. |
@@ -98,7 +100,7 @@ The formula still renders and can be selected and copied; only editing stops.
 
 ## What can be typed
 
-The tools insert a square root, a cube root, a fraction, a power and brackets. Subscripts have no button — `_` writes them. Everything else is the keyboard:
+The toolbar comes in three groups, divided: the formulas that have to be built — a square root, a cube root, a fraction, a power, brackets — then the four operators `+` `−` `:` `⋅`, then the two arrows that move the caret. Every button does what the matching key does, so a field can be filled in on a tablet with no keyboard at all. The last two groups are `showOperators` and `showNavigation`, on by default and switched off one at a time; the formulas have no switch, since building those is what the field is for. Subscripts have no button — `_` writes them. The rest is the keyboard:
 
 | Key | What it does |
 | --- | --- |

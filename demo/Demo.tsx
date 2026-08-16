@@ -50,6 +50,8 @@ export function Demo() {
   const [latex, setLatex] = useState("");
   const [theme, setTheme] = useState(defaultTheme);
   const [autoHideToolbar, setAutoHideToolbar] = useState(true);
+  const [showOperators, setShowOperators] = useState(true);
+  const [showNavigation, setShowNavigation] = useState(true);
   const [disabled, setDisabled] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [rawCopied, setRawCopied] = useState(false);
@@ -83,7 +85,7 @@ const fieldStyle = {
 } as CSSProperties;
 
 export function AnswerField() {
-  return <MathInput style={fieldStyle}${autoHideToolbar ? "" : " autoHideToolbar={false}"}${disabled ? " disabled" : ""} />;
+  return <MathInput style={fieldStyle}${autoHideToolbar ? "" : " autoHideToolbar={false}"}${showOperators ? "" : " showOperators={false}"}${showNavigation ? "" : " showNavigation={false}"}${disabled ? " disabled" : ""} />;
 }`;
   const copyText = async (text: string, setCopied: (copied: boolean) => void) => {
     await navigator.clipboard.writeText(text);
@@ -101,7 +103,7 @@ export function AnswerField() {
       <aside className="demo-customizer" aria-label="Field customization">
         <div className="demo-customizer-heading">
           <p>Field controls</p>
-          <button type="button" onClick={() => { setTheme(defaultTheme); setAutoHideToolbar(true); setDisabled(false); }}>Reset</button>
+          <button type="button" onClick={() => { setTheme(defaultTheme); setAutoHideToolbar(true); setShowOperators(true); setShowNavigation(true); setDisabled(false); }}>Reset</button>
         </div>
         <RangeControl label="Corner radius" value={theme.radius} min={0} max={32} unit="px" onChange={(value) => setThemeValue("radius", value)} />
         <RangeControl label="Field padding" value={theme.padding} min={8} max={24} unit="px" onChange={(value) => setThemeValue("padding", value)} />
@@ -110,12 +112,14 @@ export function AnswerField() {
         <ColorControl label="Surface" value={theme.surface} onChange={(value) => setThemeValue("surface", value)} />
         <ColorControl label="Formula ink" value={theme.ink} onChange={(value) => setThemeValue("ink", value)} />
         <ToggleControl label="Auto-hide toolbar" checked={autoHideToolbar} onChange={setAutoHideToolbar} />
+        <ToggleControl label="Operator buttons" checked={showOperators} onChange={setShowOperators} />
+        <ToggleControl label="Navigation buttons" checked={showNavigation} onChange={setShowNavigation} />
         <ToggleControl label="Disabled" checked={disabled} onChange={setDisabled} />
       </aside>
 
       <div className="demo-preview-column">
         <section className="demo-canvas" aria-label="Math editor">
-          <MathInput value={latex} onChange={setLatex} placeholder="Type a formula" autoHideToolbar={autoHideToolbar} disabled={disabled} className="demo-math-input" style={mathInputStyle} />
+          <MathInput value={latex} onChange={setLatex} placeholder="Type a formula" autoHideToolbar={autoHideToolbar} showOperators={showOperators} showNavigation={showNavigation} disabled={disabled} className="demo-math-input" style={mathInputStyle} />
           {disabled
             ? <p className="demo-hint">The field is <code>disabled</code>: the formula still renders and can be selected and copied, but nothing can be written or removed — an answer shown back to whoever wrote it.</p>
             : <p className="demo-hint">Press <kbd>Enter</kbd> or use the row action to expand · <kbd>←</kbd> <kbd>→</kbd> moves through a formula · <kbd>Space</kbd> steps past what is in front of the caret · click to its right or press <kbd>End</kbd> to continue after it · <kbd>Esc</kbd> leaves the field</p>}

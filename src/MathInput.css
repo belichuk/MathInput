@@ -61,16 +61,34 @@
   border-top: 0;
 }
 
+/* Wraps rather than overflows: a narrow field keeps every tool, on as many lines as it takes. */
 .math-input__toolbar {
   position: sticky;
   top: 0;
   z-index: 10;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem;
   border-bottom: 1px solid var(--math-input-soft-border-color);
   background: var(--math-input-subtle-surface);
+}
+
+/* A group is what wraps: the tools that belong together stay on one line while they fit. */
+.math-input__tool-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.math-input__toolbar-divider {
+  align-self: stretch;
+  width: 1px;
+  min-height: 1.75rem;
+  margin: 0 0.125rem;
+  background: var(--math-input-soft-border-color);
 }
 
 .math-input__tool,

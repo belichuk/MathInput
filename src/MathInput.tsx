@@ -1,4 +1,4 @@
-import { type CompositionEvent as ReactCompositionEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { type CompositionEvent as ReactCompositionEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import "./MathInput.css";
 import { type FormulaNode, type SelectionRange, collapsedAt, isBlank, samePosition } from "./model";
 import { rowEnd, rowStart } from "./caret";
@@ -18,6 +18,10 @@ export type MathInputProps = {
   disabled?: boolean;
   /** Show a row's tools only while it has focus. Off keeps them on the last used row. */
   autoHideToolbar?: boolean;
+  /** The `+ − : ⋅` group. Off for a field only ever filled in from a keyboard. */
+  showOperators?: boolean;
+  /** The `← →` group, which moves the caret through a formula the arrow keys' way. */
+  showNavigation?: boolean;
   className?: string;
   style?: CSSProperties;
   "aria-label"?: string;
@@ -28,42 +32,91 @@ type Caret = { rowId: string; range: SelectionRange } | null;
 type EditorState = { rows: Row[]; caret: Caret };
 /** Subscripts are written with `_` rather than pressed, so they are not among the tools. */
 type ToolKind = Exclude<CompoundKind, "subscript">;
-type EditorIconName = ToolKind | "newLine" | "remove";
+type EditorIconName = ToolKind | "newLine" | "remove" | "plus" | "minus" | "divide" | "times" | "back" | "forward";
 
 const NUMERAL = "M528 432C528 437 526 442 521 445C517 448 512 449 507 447L459 431C451 428 446 419 449 411C452 403 461 398 469 401L496 410V288H464C455 288 448 281 448 272C448 263 455 256 464 256H560C569 256 576 263 576 272C576 281 569 288 560 288H528V432Z";
 const LETTER_X = "M80 384C71 384 64 377 64 368C64 359 71 352 80 352H119L221 192L119 32H80C71 32 64 25 64 16C64 7 71 0 80 0H128C134 0 139 3 142 7L240 162L339 7C341 3 347 0 352 0H400C409 0 416 7 416 16C416 25 409 32 400 32H361L259 192L361 352H400C409 352 416 359 416 368C416 377 409 384 400 384H352C347 384 341 381 339 377L240 222L142 377C139 381 134 384 128 384H80Z";
 const RADICAL = "M352 384C345 384 339 379 337 372L223 -20C222 -27 216 -31 210 -32C203 -33 197 -29 194 -24L83 184C80 189 75 192 69 192H16C7 192 0 199 0 208C0 217 7 224 16 224H69C87 224 103 214 111 199L204 26L306 381C312 402 331 416 352 416H560C569 416 576 409 576 400C576 391 569 384 560 384H352Z";
 
+/**
+ * `paths` are filled outlines lifted from a font, so they are drawn y-up and flipped into
+ * place; `strokes`, `dots` and `index` are drawn in the box's own coordinates, which is
+ * what the symbols written here rather than taken from a typeface use.
+ */
+type Glyph = { width: number; paths?: string[]; strokes?: string[]; dots?: [number, number, number][]; index?: string };
+
 function EditorIcon({ name }: { name: EditorIconName }) {
-  const glyph = {
+  const glyph = ({
     sqrt: { width: 576, paths: [RADICAL] },
     // The same radical, with the index drawn where a root's index sits.
     cubeRoot: { width: 576, paths: [RADICAL], index: "3" },
     frac: { width: 448, paths: ["M248 344C248 357 237 368 224 368C211 368 200 357 200 344C200 331 211 320 224 320C237 320 248 331 248 344ZM168 344C168 375 193 400 224 400C255 400 280 375 280 344C280 313 255 288 224 288C193 288 168 313 168 344ZM0 192C0 201 7 208 16 208H432C441 208 448 201 448 192C448 183 441 176 432 176H16C7 176 0 183 0 192ZM224 16C237 16 248 27 248 40C248 53 237 64 224 64C211 64 200 53 200 40C200 27 211 16 224 16ZM224 96C255 96 280 71 280 40C280 9 255 -16 224 -16C193 -16 168 9 168 40C168 71 193 96 224 96Z"] },
     power: { width: 576, paths: [LETTER_X, NUMERAL] },
-    group: { width: 448, paths: [], brackets: true },
+    group: { width: 448, strokes: ["M170 0C60 100 60 288 170 384", "M278 0C388 100 388 288 278 384"] },
+    plus: { width: 448, strokes: ["M64 192H384", "M224 32V352"] },
+    minus: { width: 448, strokes: ["M64 192H384"] },
+    // The two signs the editor writes as characters: a raised dot for multiplication —
+    // never a cross — and the colon for division, which is the fraction's inline form.
+    times: { width: 448, dots: [[224, 192, 72]] },
+    divide: { width: 448, dots: [[224, 102, 52], [224, 282, 52]] },
+    back: { width: 448, strokes: ["M384 192H64", "M176 80 64 192 176 304"] },
+    forward: { width: 448, strokes: ["M64 192H384", "M272 80 384 192 272 304"] },
     newLine: { width: 512, paths: ["M480 368C480 377 487 384 496 384C505 384 512 377 512 368V272C512 219 469 176 416 176H55L171 59C178 53 178 43 171 37C165 30 155 30 149 37L5 181C2 184 0 188 0 192C0 196 2 200 5 203L149 347C155 353 165 353 171 347C178 341 178 331 171 325L55 208H416C451 208 480 237 480 272V368Z"] },
     remove: { width: 448, paths: ["M176 432C169 432 163 427 161 421L150 384H299L288 421C286 427 279 432 272 432H176ZM130 430C136 450 155 464 176 464H272C293 464 312 450 318 430L332 384H432C441 384 448 377 448 368C448 359 441 352 432 352H16C7 352 0 359 0 368C0 377 7 384 16 384H116L130 430ZM52 -5 29 304H61L84 -2C85 -19 99 -32 115 -32H333C349 -32 363 -19 364 -2L387 304H419L396 -5C394 -38 366 -64 333 -64H115C82 -64 54 -38 52 -5ZM157 227C163 233 173 233 179 227L224 183L269 227C275 233 285 233 291 227C298 221 298 211 291 205L247 160L291 115C298 109 298 99 291 93C285 86 275 86 269 93L224 137L179 93C173 86 163 86 157 93C151 99 151 109 157 115L201 160L157 205C151 211 151 221 157 227Z"] },
-  }[name] as { width: number; paths: string[]; index?: string; brackets?: boolean };
+  } satisfies Record<EditorIconName, Glyph>)[name] as Glyph;
 
   return <svg className="math-input__icon" viewBox={`0 -64 ${glyph.width} 512`} fill="currentColor" aria-hidden="true">
-    <g transform="translate(0 384) scale(1 -1)">
+    {glyph.paths ? <g transform="translate(0 384) scale(1 -1)">
       {glyph.paths.map((path) => <path key={path} d={path} />)}
-    </g>
-    {glyph.index ? <text x="24" y="112" fontSize="230" fontWeight="700" fill="currentColor">{glyph.index}</text> : null}
-    {glyph.brackets ? <g stroke="currentColor" strokeWidth="34" strokeLinecap="round" fill="none">
-      <path d="M170 0C60 100 60 288 170 384" />
-      <path d="M278 0C388 100 388 288 278 384" />
     </g> : null}
+    {glyph.strokes ? <g stroke="currentColor" strokeWidth="34" strokeLinecap="round" strokeLinejoin="round" fill="none">
+      {glyph.strokes.map((path) => <path key={path} d={path} />)}
+    </g> : null}
+    {glyph.dots?.map(([x, y, radius]) => <circle key={`${x} ${y}`} cx={x} cy={y} r={radius} />)}
+    {glyph.index ? <text x="24" y="112" fontSize="230" fontWeight="700" fill="currentColor">{glyph.index}</text> : null}
   </svg>;
 }
 
-const TOOLS: { kind: ToolKind; label: string; title: string }[] = [
-  { kind: "sqrt", label: "Insert square root", title: "Square root" },
-  { kind: "cubeRoot", label: "Insert cube root", title: "Cube root" },
-  { kind: "frac", label: "Insert fraction", title: "Divide" },
-  { kind: "power", label: "Insert power", title: "Power" },
-  { kind: "group", label: "Insert brackets", title: "Brackets" },
+/**
+ * The toolbar, in the three groups a divider separates: the formulas that have to be
+ * built, the operators that are only characters — offered because a formula is written
+ * on a tablet as often as on a keyboard — and the caret, for hands that are not on the
+ * arrow keys. Everything a button does is an ordinary action, the same one the matching
+ * key dispatches.
+ */
+type ToolGroupKey = "formulas" | "operators" | "navigation";
+
+const TOOL_GROUPS: { key: ToolGroupKey; label: string; tools: { icon: EditorIconName; label: string; title: string; action: Action }[] }[] = [
+  {
+    key: "formulas",
+    label: "Formulas",
+    tools: [
+      { icon: "sqrt", label: "Insert square root", title: "Square root", action: { type: "insertCompound", kind: "sqrt" } },
+      { icon: "cubeRoot", label: "Insert cube root", title: "Cube root", action: { type: "insertCompound", kind: "cubeRoot" } },
+      { icon: "frac", label: "Insert fraction", title: "Fraction", action: { type: "insertCompound", kind: "frac" } },
+      { icon: "power", label: "Insert power", title: "Power", action: { type: "insertCompound", kind: "power" } },
+      { icon: "group", label: "Insert brackets", title: "Brackets", action: { type: "insertCompound", kind: "group" } },
+    ],
+  },
+  {
+    key: "operators",
+    label: "Operators",
+    tools: [
+      { icon: "plus", label: "Insert a plus", title: "Plus", action: { type: "insertText", text: "+" } },
+      { icon: "minus", label: "Insert a minus", title: "Minus", action: { type: "insertText", text: "-" } },
+      { icon: "divide", label: "Insert a division sign", title: "Divide", action: { type: "insertText", text: ":" } },
+      // `*` is written as `⋅` and emitted as `\cdot`, exactly as the key is.
+      { icon: "times", label: "Insert a multiplication dot", title: "Multiply", action: { type: "insertText", text: "*" } },
+    ],
+  },
+  {
+    key: "navigation",
+    label: "Move the caret",
+    tools: [
+      { icon: "back", label: "Move the caret back", title: "Back", action: { type: "move", direction: "backward" } },
+      { icon: "forward", label: "Move the caret on", title: "Forward", action: { type: "move", direction: "forward" } },
+    ],
+  },
 ];
 
 /**
@@ -91,7 +144,7 @@ const toRows = (latex: string): Row[] => latex.split("\n").map((line) => ({ id: 
 const sameRange = (first: SelectionRange, second: SelectionRange): boolean => samePosition(first.anchor, second.anchor) && samePosition(first.focus, second.focus);
 
 /** A dependency-free, visual formula editor that emits LaTeX-compatible text. */
-export function MathInput({ value, defaultValue = "", onChange, placeholder = "Write a formula…", disabled = false, autoHideToolbar = true, className = "", style, "aria-label": ariaLabel = "Math editor" }: MathInputProps) {
+export function MathInput({ value, defaultValue = "", onChange, placeholder = "Write a formula…", disabled = false, autoHideToolbar = true, showOperators = true, showNavigation = true, className = "", style, "aria-label": ariaLabel = "Math editor" }: MathInputProps) {
   const [state, setState] = useState<EditorState>(() => ({ rows: toRows(value ?? defaultValue), caret: null }));
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
   /** The row the caret last sat in, which keeps the tools when they are not auto-hidden. */
@@ -415,13 +468,22 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
   const existing = (id: string | null) => (state.rows.some((row) => row.id === id) ? id : null);
   const toolbarRowId = existing(activeRowId) ?? (autoHideToolbar ? null : existing(restingRowId) ?? state.rows[0].id);
 
+  // Filtered before it is drawn, so the dividers follow the groups that are actually
+  // there rather than a hidden one leaving its line behind.
+  const groups = TOOL_GROUPS.filter((group) => (group.key === "operators" ? showOperators : group.key === "navigation" ? showNavigation : true));
+
   const buttonClass = "math-input__tool";
   return <div className={`math-input ${className}`.trim()} style={style}>
     <div className="math-input__frame" ref={frame} aria-labelledby={labelId}>
       <span id={labelId} className="math-input__visually-hidden">{ariaLabel}</span>
       {state.rows.map((row, index) => <div className="math-input__row" key={row.id}>
         {toolbarRowId === row.id && <div className="math-input__toolbar" role="toolbar" aria-label={`Formula tools for row ${index + 1}`}>
-          {TOOLS.map((tool) => <button key={tool.kind} type="button" className={buttonClass} onMouseDown={(event) => event.preventDefault()} onClick={() => { focusRow(row.id); dispatch(row.id, { type: "insertCompound", kind: tool.kind }); }} disabled={disabled} aria-label={tool.label} title={tool.title}><EditorIcon name={tool.kind} /></button>)}
+          {groups.map((group, at) => <Fragment key={group.key}>
+            {at > 0 && <span className="math-input__toolbar-divider" aria-hidden="true" />}
+            <div className="math-input__tool-group" role="group" aria-label={group.label}>
+              {group.tools.map((tool) => <button key={tool.icon} type="button" className={buttonClass} onMouseDown={(event) => event.preventDefault()} onClick={() => { focusRow(row.id); dispatch(row.id, tool.action); }} disabled={disabled} aria-label={tool.label} title={tool.title}><EditorIcon name={tool.icon} /></button>)}
+            </div>
+          </Fragment>)}
           {state.rows.length > 1 && <button type="button" className="math-input__remove-row" onMouseDown={(event) => event.preventDefault()} onClick={() => removeRow(row.id)} aria-label="Remove formula row" title="Remove"><EditorIcon name="remove" /></button>}
         </div>}
         <div
