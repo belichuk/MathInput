@@ -298,7 +298,7 @@ Keys the editor has no use for are left completely alone: `Tab` and `Shift`+`Tab
 
 `Escape` leaves the field. It is taken like the rest, so a dialog around the editor closes on the second press — the first steps out of the formula, the second reaches the dialog.
 
-A host that genuinely needs to watch every keystroke can listen in the capture phase above the editor, which runs before the component sees the event; the demo's keyboard log does exactly that.
+A host that genuinely needs to watch every keystroke can listen in the capture phase above the editor — `addEventListener("keydown", handler, true)` on a container — which runs before the component sees the event.
 
 ## Editing formulas in detail
 
@@ -347,7 +347,7 @@ vite.config.ts  builds and tests the package — the default config is the produ
 tsconfig.json   type-checks everything; tsconfig.build.json emits what ships
 ```
 
-The demo — sliders and colour pickers for the CSS variables above, the live LaTeX value, and a log of every key pressed — is for developing against and for a first look. It is not part of what ships: `files` in `package.json` is `dist` alone, and `npm run build:demo` puts the site in `dist-demo/` if you want to host it.
+The demo — sliders and colour pickers for the CSS variables above, switches for the toolbar and for `disabled`, and the live LaTeX value — is for developing against and for a first look. It is not part of what ships: `files` in `package.json` is `dist` alone, and `npm run build:demo` puts the site in `dist-demo/` if you want to host it.
 
 | `src/` file | Responsibility |
 | --- | --- |

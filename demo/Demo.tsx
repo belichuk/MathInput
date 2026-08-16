@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useState } from "react";
 import { MathInput } from "../src";
 
 type FieldTheme = {
@@ -46,28 +46,14 @@ function ToggleControl({ label, checked, onChange }: { label: string; checked: b
   </label>;
 }
 
-function formatKey(key: string) { return key === "ArrowRight" ? "Right" : key === " " ? "Space" : key; }
-
 export function Demo() {
   const [latex, setLatex] = useState("");
   const [theme, setTheme] = useState(defaultTheme);
   const [autoHideToolbar, setAutoHideToolbar] = useState(true);
+  const [disabled, setDisabled] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
-  const [keyboardLog, setKeyboardLog] = useState<string[]>([]);
-  const canvas = useRef<HTMLElement | null>(null);
   const [rawCopied, setRawCopied] = useState(false);
-  const [keysCopied, setKeysCopied] = useState(false);
   const setThemeValue = <Key extends keyof FieldTheme>(key: Key, value: FieldTheme[Key]) => setTheme((current) => ({ ...current, [key]: value }));
-
-  // Captured above the editor, on the way down: MathInput stops every key it takes from
-  // travelling any further, so a listener waiting for them to arrive would hear nothing.
-  useEffect(() => {
-    const log = (event: KeyboardEvent) => {
-      if (canvas.current?.contains(event.target as Node)) setKeyboardLog((keys) => [...keys, event.key]);
-    };
-    document.addEventListener("keydown", log, true);
-    return () => document.removeEventListener("keydown", log, true);
-  }, []);
 
   const mathInputStyle = {
     "--math-input-radius": `${theme.radius}px`,
@@ -97,13 +83,8 @@ const fieldStyle = {
 } as CSSProperties;
 
 export function AnswerField() {
-  return <MathInput style={fieldStyle}${autoHideToolbar ? "" : " autoHideToolbar={false}"} />;
+  return <MathInput style={fieldStyle}${autoHideToolbar ? "" : " autoHideToolbar={false}"}${disabled ? " disabled" : ""} />;
 }`;
-  const copyCode = async () => {
-    await navigator.clipboard.writeText(componentCode);
-    setCodeCopied(true);
-    window.setTimeout(() => setCodeCopied(false), 1_600);
-  };
   const copyText = async (text: string, setCopied: (copied: boolean) => void) => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
@@ -120,7 +101,7 @@ export function AnswerField() {
       <aside className="demo-customizer" aria-label="Field customization">
         <div className="demo-customizer-heading">
           <p>Field controls</p>
-          <button type="button" onClick={() => { setTheme(defaultTheme); setAutoHideToolbar(true); }}>Reset</button>
+          <button type="button" onClick={() => { setTheme(defaultTheme); setAutoHideToolbar(true); setDisabled(false); }}>Reset</button>
         </div>
         <RangeControl label="Corner radius" value={theme.radius} min={0} max={32} unit="px" onChange={(value) => setThemeValue("radius", value)} />
         <RangeControl label="Field padding" value={theme.padding} min={8} max={24} unit="px" onChange={(value) => setThemeValue("padding", value)} />
@@ -129,12 +110,26 @@ export function AnswerField() {
         <ColorControl label="Surface" value={theme.surface} onChange={(value) => setThemeValue("surface", value)} />
         <ColorControl label="Formula ink" value={theme.ink} onChange={(value) => setThemeValue("ink", value)} />
         <ToggleControl label="Auto-hide toolbar" checked={autoHideToolbar} onChange={setAutoHideToolbar} />
+        <ToggleControl label="Disabled" checked={disabled} onChange={setDisabled} />
       </aside>
 
       <div className="demo-preview-column">
-        <section className="demo-canvas" aria-label="Math editor" ref={canvas}>
-          <MathInput value={latex} onChange={setLatex} placeholder="Type a formula" autoHideToolbar={autoHideToolbar} className="demo-math-input" style={mathInputStyle} />
-          <p className="demo-hint">Press <kbd>Enter</kbd> or use the row action to expand · <kbd>←</kbd> <kbd>→</kbd> moves through a formula · <kbd>Space</kbd> steps past what is in front of the caret · click to its right or press <kbd>End</kbd> to continue after it · <kbd>Esc</kbd> leaves the field</p>
+        <section className="demo-canvas" aria-label="Math editor">
+          <MathInput value={latex} onChange={setLatex} placeholder="Type a formula" autoHideToolbar={autoHideToolbar} disabled={disabled} className="demo-math-input" style={mathInputStyle} />
+          {disabled
+            ? <p className="demo-hint">The field is <code>disabled</code>: the formula still renders and can be selected and copied, but nothing can be written or removed — an answer shown back to whoever wrote it.</p>
+            : <p className="demo-hint">Press <kbd>Enter</kbd> or use the row action to expand · <kbd>←</kbd> <kbd>→</kbd> moves through a formula · <kbd>Space</kbd> steps past what is in front of the caret · click to its right or press <kbd>End</kbd> to continue after it · <kbd>Esc</kbd> leaves the field</p>}
+        </section>
+
+        <section className="demo-panel" aria-label="Raw value">
+          <div className="demo-panel-heading">
+            <h2>Raw value</h2>
+            <div className="demo-panel-actions">
+              <span>KaTeX source</span>
+              <button type="button" className="demo-panel-copy" onClick={() => void copyText(latex, setRawCopied)} disabled={!latex} aria-label="Copy raw value">{rawCopied ? "Copied" : "Copy"}</button>
+            </div>
+          </div>
+          <pre className="demo-panel-code"><code>{latex || "The KaTeX value will appear as you type."}</code></pre>
         </section>
 
         <section className="demo-code" aria-labelledby="component-code-title">
@@ -143,35 +138,9 @@ export function AnswerField() {
               <p id="component-code-title">Make it your component</p>
               <span>Current settings, ready to paste.</span>
             </div>
-            <button type="button" onClick={copyCode}>{codeCopied ? "Copied" : "Copy code"}</button>
+            <button type="button" onClick={() => void copyText(componentCode, setCodeCopied)}>{codeCopied ? "Copied" : "Copy code"}</button>
           </div>
           <pre><code>{componentCode}</code></pre>
-        </section>
-
-        <section className="demo-panels">
-          <div className="demo-panel" aria-label="Raw value">
-            <div className="demo-panel-heading">
-              <h2>Raw value</h2>
-              <div className="demo-panel-actions">
-                <span>KaTeX source</span>
-                <button type="button" className="demo-panel-copy" onClick={() => void copyText(latex, setRawCopied)} disabled={!latex} aria-label="Copy raw value">{rawCopied ? "Copied" : "Copy"}</button>
-              </div>
-            </div>
-            <pre className="demo-panel-code"><code>{latex || "The KaTeX value will appear as you type."}</code></pre>
-          </div>
-
-          <div className="demo-panel" aria-label="Keyboard log" aria-live="polite">
-            <div className="demo-panel-heading">
-              <h2>Keyboard log</h2>
-              <div className="demo-panel-actions">
-                <span>{keyboardLog.length} keys</span>
-                <button type="button" className="demo-panel-copy" onClick={() => void copyText(keyboardLog.map(formatKey).join(" "), setKeysCopied)} disabled={keyboardLog.length === 0} aria-label="Copy keyboard log">{keysCopied ? "Copied" : "Copy"}</button>
-              </div>
-            </div>
-            <div className="demo-panel-keys">
-              {keyboardLog.length > 0 ? keyboardLog.map((key, index) => <kbd key={`${key}-${index}`}>{formatKey(key)}</kbd>) : <p>Keys pressed in this editor will appear here.</p>}
-            </div>
-          </div>
         </section>
       </div>
     </div>

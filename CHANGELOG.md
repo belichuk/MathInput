@@ -14,6 +14,7 @@ What changed in each version of the component. Versions follow [semantic version
 
 ### Changed
 
+- The demo reads top to bottom as one story: the field, the raw LaTeX it emits, then the component code. `disabled` joins the field controls, so read-only is something to try on the field itself rather than a second field to look at, and the generated code carries the prop like the rest of the settings. The keyboard log is gone; it demonstrated the capture-phase escape hatch, which the README now describes in a line of code instead. The headline sits on one line.
 - A little more room on either side of a root. The radical's bar overhangs a short radicand, so a caret that had just left the root stood against the end of that bar and read as still being under it — leaving a root looked like nothing had happened. The gap is where the caret now stands to show it is out, and it applies however the root is left: `Space`, `→`, or a click.
 
 ## 0.3.3 — 2026-08-14
