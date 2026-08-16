@@ -2,7 +2,11 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
-## Unreleased
+## 0.3.7 — 2026-08-16
+
+Roots. The radical was one drawing at one size, ruled over whatever it was given;
+it is drawn to the height of what it covers now, in the weight that height asks
+for, with its bar continuing the same stroke.
 
 ### Changed
 
