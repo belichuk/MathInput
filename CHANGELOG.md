@@ -2,6 +2,12 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
+## Unreleased
+
+### Fixed
+
+- A divider left at the end of a wrapped toolbar line divided nothing: what it stood between was on the line below, which already separates them. Those are hidden, and only those — a divider whose group shares its line stays. Hidden rather than taken out of the flow, because removing one would give the line back the room that made it wrap, and the two would take turns undoing each other every time the field was resized.
+
 ## 0.3.6 — 2026-08-16
 
 The toolbar. It could build a square root but not write a plus, which is half of

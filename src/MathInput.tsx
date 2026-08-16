@@ -185,6 +185,24 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     for (const rowId of fields.current.keys()) syncScrollbar(rowId);
   }, [syncScrollbar]);
 
+  /**
+   * A toolbar too wide for its field wraps, and a divider left at the end of a line
+   * divides nothing: what it stood between is on the next line, which already separates
+   * them. Those are hidden rather than taken out of the flow — removing one would give
+   * the line back the room that made it wrap, so the two would take turns undoing each
+   * other. A group that shares its line with the divider before it keeps that divider.
+   */
+  const syncDividers = useCallback(() => {
+    for (const divider of frame.current?.querySelectorAll<HTMLElement>(".math-input__toolbar-divider") ?? []) {
+      const group = divider.nextElementSibling as HTMLElement | null;
+      const together = !!group && group.offsetTop < divider.offsetTop + divider.offsetHeight;
+      divider.style.visibility = together ? "" : "hidden";
+    }
+  }, []);
+
+  /** Everything drawn from measurement rather than from state, after a render and after a resize. */
+  const syncFrame = useCallback(() => { syncScrollbars(); syncDividers(); }, [syncScrollbars, syncDividers]);
+
   const commit = useCallback((next: EditorState) => {
     live.current = next;
     setState(next);
@@ -267,17 +285,18 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     if (applySelection(field, caret.range)) scrollCaretIntoView(field);
   });
 
-  // The thumb is a rendering of the field's scroll state, so it follows every edit and
-  // every change of the editor's width, not only the scrolling itself.
-  useLayoutEffect(syncScrollbars);
+  // The thumb is a rendering of the field's scroll state, and a divider of where its
+  // toolbar wrapped, so both follow every edit and every change of the editor's width,
+  // not only the scrolling itself.
+  useLayoutEffect(syncFrame);
 
   useEffect(() => {
     const container = frame.current;
     if (!container) return;
-    const observer = new ResizeObserver(syncScrollbars);
+    const observer = new ResizeObserver(syncFrame);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [syncScrollbars]);
+  }, [syncFrame]);
 
   useLayoutEffect(() => {
     const id = pendingFocus.current;
