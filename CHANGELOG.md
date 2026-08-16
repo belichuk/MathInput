@@ -2,7 +2,12 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
-## Unreleased
+## 0.3.6 — 2026-08-16
+
+The toolbar. It could build a square root but not write a plus, which is half of
+what a worked solution is made of and all of what a tablet with no keyboard can
+reach. It now carries the signs and the caret as well as the formulas, and a sign
+typed after a sign corrects it rather than piling up beside it.
 
 ### Added
 
