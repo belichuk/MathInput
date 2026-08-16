@@ -2,7 +2,11 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
-## Unreleased
+## 0.3.5 — 2026-08-16
+
+The space bar. A formula carries no whitespace, so the key was dropped on the floor; it now moves the caret past what is in front of it, which is what a formula being written needs it for. Two things it turned up on the way are fixed with it: a power that opened at a slot nobody could write in, and a root that gave no sign the caret had left it.
+
+0.3.4 was never published; this work is released as 0.3.5.
 
 ### Added
 
