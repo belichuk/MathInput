@@ -43,6 +43,39 @@ describe("insertText", () => {
   });
 });
 
+describe("one sign typed after another", () => {
+  it("writes the new sign over the old one", () => {
+    expect(sketch(apply(rowOf("1+", top(0, 2)), type("-")))).toBe("1-|");
+    expect(sketch(apply(rowOf("1-", top(0, 2)), type("*")))).toBe("1\\cdot |");
+    expect(sketch(apply(rowOf("1\\cdot ", top(0, 2)), type(":")))).toBe("1:|");
+  });
+
+  it("corrects as many times as it takes, and never leaves two behind", () => {
+    expect(sketch(apply(rowOf(""), type("1"), type("+"), type("-"), type(":"), type("2")))).toBe("1:2|");
+  });
+
+  it("leaves a sign that opens a row, a bracket or a slot alone", () => {
+    expect(sketch(apply(rowOf(""), type("-")))).toBe("-|");
+    expect(sketch(apply(rowOf("\\left(\\right)", inside(1, "content", 0)), type("-")))).toBe("\\left(-|\\right)");
+    expect(sketch(apply(rowOf("\\sqrt{}", inside(1, "content", 0)), type("-")))).toBe("\\sqrt{-|}");
+  });
+
+  it("writes a sign after a digit, a bracket or a whole formula", () => {
+    expect(sketch(apply(rowOf("1", top(0, 1)), type("-")))).toBe("1-|");
+    expect(sketch(apply(rowOf("\\left(9\\right)", top(2, 0)), type("-")))).toBe("\\left(9\\right)-|");
+    expect(sketch(apply(rowOf("\\sqrt{2}", top(2, 0)), type("+")))).toBe("\\sqrt{2}+|");
+  });
+
+  it("only replaces for a sign: a digit typed after one is written", () => {
+    expect(sketch(apply(rowOf("1+", top(0, 2)), type("2")))).toBe("1+2|");
+    expect(sketch(apply(rowOf("1+", top(0, 2)), type("-2")))).toBe("1+-2|");
+  });
+
+  it("works in the middle of a run, where the caret is", () => {
+    expect(sketch(apply(rowOf("1+2", top(0, 2)), type(":")))).toBe("1:|2");
+  });
+});
+
 describe("the / key", () => {
   it("makes the preceding number the numerator and moves to the denominator", () => {
     expect(sketch(apply(rowOf("10", top(0, 2)), { type: "divide" }))).toBe("\\frac{10}{|}");

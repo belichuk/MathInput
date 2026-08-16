@@ -1,7 +1,7 @@
 import {
   type BranchKey, type CaretPosition, type CompoundNode, type FormulaNode, type Path, type SelectionRange,
   arrayPathOf, branchKeys, branchOf, collapsedAt, emptyContent, enclosingNodePath, frac, group, isCollapsed, isCompound, isShallowEmpty, isText,
-  isBlank, nextBoundary, normalize, orderedRange, power, previousBoundary, resolve, resolveArray, resolveNode, slotPath, sqrt, stepOf, subscript, text, updateArray, withBranch,
+  isBlank, nextBoundary, normalize, orderedRange, power, previousBoundary, resolve, resolveArray, resolveNode, slotPath, sqrt, stepOf, subscript, text, textAt, TIMES, updateArray, withBranch,
 } from "./model";
 import { cleanFormulaText, parseLatex } from "./parse";
 import { endOfArray, exitBackward, exitForward, nextPosition, positionAfterNode, previousPosition, rowEnd, rowStart, skipForward, startOfArray } from "./caret";
@@ -129,12 +129,33 @@ function removeNodeAt(content: FormulaNode[], nodePath: Path): { content: Formul
 // Insertion
 // ---------------------------------------------------------------------------
 
-function insertTextAt(content: FormulaNode[], caret: CaretPosition, value: string): RowState {
+/** `replace` is how many characters immediately behind the caret the insertion is written over. */
+function insertTextAt(content: FormulaNode[], caret: CaretPosition, value: string, replace = 0): RowState {
   const target = resolve(content, caret.path);
   const node = target?.array[target.index];
   if (!target || !isText(node)) return settle(content, caret);
-  const next = node.value.slice(0, caret.offset) + value + node.value.slice(caret.offset);
-  return settle(updateArray(content, arrayPathOf(caret.path), (array) => replaceNode(array, target.index, text(next))), { path: caret.path, offset: caret.offset + value.length });
+  const at = caret.offset - replace;
+  const next = node.value.slice(0, at) + value + node.value.slice(caret.offset);
+  return settle(updateArray(content, arrayPathOf(caret.path), (array) => replaceNode(array, target.index, text(next))), { path: caret.path, offset: at + value.length });
+}
+
+/** The signs written as characters rather than built as formulas. */
+const SIGNS = `+-:${TIMES}`;
+const isSign = (value: string): boolean => value.length === 1 && SIGNS.includes(value);
+
+/**
+ * Whether a sign being typed takes the place of the one behind it.
+ *
+ * Two signs in a row are a slip rather than a formula — nobody means `1+-` — and the
+ * second one is nearly always the correction, so it is written over the first: `1+` then
+ * `−` is `1−`, from the key or from the toolbar alike. Only a sign replaces a sign;
+ * anything with a digit, a bracket or a whole formula behind it is written as it is, and
+ * so a minus opening a row or a bracket is still a minus sign.
+ */
+function replacesSign(content: FormulaNode[], caret: CaretPosition, value: string): boolean {
+  if (!isSign(value)) return false;
+  const node = textAt(content, caret.path);
+  return node !== null && caret.offset > 0 && isSign(node.value[caret.offset - 1]);
 }
 
 /** What `/`, `^` and `_` swallow: the run of term characters behind the caret, or the whole formula behind it. */
@@ -276,7 +297,7 @@ export function reduce(state: RowState, action: Action): RowState {
       const value = cleanFormulaText(action.text);
       if (!value) return state;
       const { content, caret } = takeSelection(state);
-      return insertTextAt(content, caret, value);
+      return insertTextAt(content, caret, value, replacesSign(content, caret, value) ? 1 : 0);
     }
     case "insertCompound": {
       const script = action.kind === "power" || action.kind === "subscript";

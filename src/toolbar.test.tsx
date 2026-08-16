@@ -69,5 +69,8 @@ describe("the toolbar", () => {
     press("Back");
     press("Plus");
     expect(latex).toBe("1+2");
+    // A second sign is a correction of the first, pressed as readily as it is typed.
+    press("Multiply");
+    expect(latex).toBe("1\\cdot 2");
   });
 });

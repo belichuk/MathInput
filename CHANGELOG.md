@@ -7,6 +7,7 @@ What changed in each version of the component. Versions follow [semantic version
 ### Added
 
 - The toolbar carries the four operators — `+`, `−`, `:` and the multiplication dot — and the two arrows that move the caret, in three groups with a divider between them: the formulas that have to be built, the characters that only have to be written, and moving about. A formula is written on a tablet as often as on a keyboard, where none of that was reachable. Every button dispatches the action its key dispatches, so the dot is still emitted as `\cdot`, and each group wraps as a whole when the field is too narrow for one line.
+- A sign written straight after another takes its place instead of standing beside it: `1+` then `−` is `1−`, `1−` then `*` is `1⋅`, from a key or from the toolbar. Two signs in a row are a slip rather than a formula, and the second press is nearly always the correction — so correcting one costs a keystroke rather than a backspace the writer has to think about first. It is only sign for sign: after a digit, a bracket or a whole formula the sign is written as it is, so a minus opening a row, a bracket or a slot is the negative it always was, and a multi-character insertion — a paste — is left alone.
 - `showOperators` and `showNavigation`, both `true`, drop either of those groups — and the divider that went with it — for a field that does not want them. The formulas have no switch of their own: building those is what a toolbar is for.
 
 ### Changed

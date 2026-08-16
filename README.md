@@ -120,6 +120,8 @@ The toolbar comes in three groups, divided: the formulas that have to be built �
 | `Esc` | Leaves the field |
 | `Tab` | Moves focus onward, untouched by the editor |
 
+A sign written straight after another takes its place: `1+` then `−` is `1−`, and `1−` then `*` is `1⋅`, from the keyboard or the toolbar. Two signs in a row are a slip rather than a formula, and the second is the correction — so a mistyped operator is fixed by pressing the right one, with no backspace in between. Only a sign replaces a sign: after a digit, a bracket or a whole formula it is simply written, so a minus that opens a row, a bracket or a slot is a negative as it always was.
+
 No whitespace is ever written into a formula — pasted spaces are dropped, and the space bar moves the caret instead — and a formula opened in front of written work wraps it: with the caret at `1/2+|10`, typing `(` gives `\frac{1}{2}+\left(10\right)` with the caret inside the brackets, after the `10`.
 
 ## Styling
@@ -318,6 +320,7 @@ The editor treats a formula as a navigable object rather than plain text:
 - Clicking past a formula's edge, or pressing `End`, continues after it.
 - Typing `=` comes out to the row before writing itself, so it always separates whole formulas: pressed deep inside `\frac{1}{\frac{1}{2}}` it lands after the outer fraction, never inside a slot, and `10^=2` cannot be typed at all.
 - `Backspace` removes the formula immediately behind the caret as one object, whatever it contains. Inside a slot it deletes normally; at the start of a slot it steps out — into the previous slot, or to just before the formula — leaving the content alone. Only when every slot of a formula is empty does the next `Backspace` remove that formula. `Delete` mirrors all of this forwards. Never more than one thing goes per keypress.
+- A sign typed after a sign replaces it, rather than being written beside it: `1+` then `−` is `1−`. Nobody means `1+−`, and the second press is the correction, so it is treated as one — which is the difference between a student fixing a slip with one key and fixing it with a backspace they have to think about. It applies to `+`, `−`, `:` and `⋅`, whether they come from keys or from the toolbar, and to nothing else: a sign following a digit, a bracket or a whole formula is written as written.
 - A selection spanning two slots deletes the covered part of each and keeps the formula: half a fraction is not a thing.
 - `Ctrl`/`Cmd`+`Z` undoes and `Shift`+`Ctrl`/`Cmd`+`Z` redoes. A run of typing undoes in one step, and moving the caret ends the run.
 
