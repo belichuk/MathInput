@@ -66,8 +66,14 @@ const TOOLS: { kind: ToolKind; label: string; title: string }[] = [
   { kind: "group", label: "Insert brackets", title: "Brackets" },
 ];
 
-/** Single characters that mean something structural rather than literal. */
+/**
+ * Single characters that mean something other than themselves: structure, or a move.
+ * Read from `beforeinput` rather than `keydown`, so a mobile keyboard's space bar and a
+ * desktop one are the same key.
+ */
 const KEYED_ACTION: Record<string, Action> = {
+  " ": { type: "skip" },
+  "\u00a0": { type: "skip" }, // some keyboards report the space bar as a non-breaking space
   "/": { type: "divide" },
   "÷": { type: "divide" },
   "^": { type: "script", kind: "power" },

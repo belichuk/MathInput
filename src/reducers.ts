@@ -4,7 +4,7 @@ import {
   isBlank, nextBoundary, normalize, orderedRange, power, previousBoundary, resolve, resolveArray, resolveNode, slotPath, sqrt, stepOf, subscript, text, updateArray, withBranch,
 } from "./model";
 import { cleanFormulaText, parseLatex } from "./parse";
-import { endOfArray, exitBackward, exitForward, nextPosition, positionAfterNode, previousPosition, rowEnd, rowStart, startOfArray } from "./caret";
+import { endOfArray, exitBackward, exitForward, nextPosition, positionAfterNode, previousPosition, rowEnd, rowStart, skipForward, startOfArray } from "./caret";
 
 /**
  * Every editing operation, as a pure function of (row, caret) → (row, caret).
@@ -29,11 +29,15 @@ export type Action =
   | { type: "closeGroup" }
   | { type: "delete"; direction: "backward" | "forward" }
   | { type: "move"; direction: "backward" | "forward" }
+  /** The space bar: forward past what is in front of the caret rather than into it. */
+  | { type: "skip" }
   | { type: "moveToEdge"; edge: "start" | "end" }
   | { type: "select"; selection: SelectionRange };
 
 export const createRowState = (line: string): RowState => ({ content: parseLatex(line), selection: collapsedAt(rowStart()) });
 const settle = (content: FormulaNode[], caret: CaretPosition): RowState => ({ content, selection: collapsedAt(caret) });
+/** Moves the caret and nothing else; a movement with nowhere to go leaves the state alone. */
+const moveTo = (state: RowState, caret: CaretPosition | null): RowState => (caret ? { content: state.content, selection: collapsedAt(caret) } : state);
 const replaceNode = (array: FormulaNode[], index: number, node: FormulaNode): FormulaNode[] => array.map((current, at) => (at === index ? node : current));
 const valueOf = (node: FormulaNode | undefined): string => (isText(node) ? node.value : "");
 
@@ -277,7 +281,12 @@ export function reduce(state: RowState, action: Action): RowState {
     case "insertCompound": {
       const script = action.kind === "power" || action.kind === "subscript";
       const caretBranch: BranchKey = action.kind === "power" ? "exponent" : action.kind === "subscript" ? "subscript" : action.kind === "frac" ? "numerator" : "content";
-      return insertCompound(state, action.kind, { capture: script, caretBranch });
+      // A tool opens a formula at the first slot that still has to be written. With a term
+      // in front of it a power takes that term as its base and the exponent is what is
+      // left, but pressed with nothing in front it has no base yet — and no key writes one
+      // from inside the exponent, so that is where the caret waits. `emptyCaretBranch` is
+      // the same mechanism that opens `/` from the top when nothing precedes it.
+      return insertCompound(state, action.kind, script ? { capture: true, caretBranch, emptyCaretBranch: "base" } : { capture: false, caretBranch });
     }
     case "divide": return insertCompound(state, "frac", { capture: true, caretBranch: "denominator", emptyCaretBranch: "numerator" });
     case "script": return insertCompound(state, action.kind, { capture: true, caretBranch: action.kind === "power" ? "exponent" : "subscript" });
@@ -301,11 +310,15 @@ export function reduce(state: RowState, action: Action): RowState {
     case "move": {
       if (!isCollapsed(state.selection)) {
         const { start, end } = orderedRange(state.content, state.selection);
-        return { content: state.content, selection: collapsedAt(action.direction === "backward" ? start : end) };
+        return moveTo(state, action.direction === "backward" ? start : end);
       }
-      const target = action.direction === "backward" ? previousPosition(state.content, state.selection.focus) : nextPosition(state.content, state.selection.focus);
-      return target ? { content: state.content, selection: collapsedAt(target) } : state;
+      return moveTo(state, action.direction === "backward" ? previousPosition(state.content, state.selection.focus) : nextPosition(state.content, state.selection.focus));
     }
+    // A selection is stepped out of rather than over: the space bar puts the caret at its
+    // far end, the same as `→`, leaving what was selected written and behind the caret.
+    case "skip": return isCollapsed(state.selection)
+      ? moveTo(state, skipForward(state.content, state.selection.focus))
+      : moveTo(state, orderedRange(state.content, state.selection).end);
     case "moveToEdge": return { content: state.content, selection: collapsedAt(action.edge === "start" ? rowStart() : rowEnd(state.content)) };
     case "select": return { content: state.content, selection: action.selection };
   }

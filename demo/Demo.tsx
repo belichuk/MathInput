@@ -134,7 +134,7 @@ export function AnswerField() {
       <div className="demo-preview-column">
         <section className="demo-canvas" aria-label="Math editor" ref={canvas}>
           <MathInput value={latex} onChange={setLatex} placeholder="Type a formula" autoHideToolbar={autoHideToolbar} className="demo-math-input" style={mathInputStyle} />
-          <p className="demo-hint">Press <kbd>Enter</kbd> or use the row action to expand · <kbd>←</kbd> <kbd>→</kbd> moves through a formula · click to its right or press <kbd>End</kbd> to continue after it · <kbd>Esc</kbd> leaves the field</p>
+          <p className="demo-hint">Press <kbd>Enter</kbd> or use the row action to expand · <kbd>←</kbd> <kbd>→</kbd> moves through a formula · <kbd>Space</kbd> steps past what is in front of the caret · click to its right or press <kbd>End</kbd> to continue after it · <kbd>Esc</kbd> leaves the field</p>
         </section>
 
         <section className="demo-code" aria-labelledby="component-code-title">

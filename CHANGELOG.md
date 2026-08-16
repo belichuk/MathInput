@@ -2,6 +2,20 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
+## Unreleased
+
+### Added
+
+- The space bar moves the caret past whatever is in front of it rather than being ignored: the rest of what is being written, then over a whole formula standing next to it, then out of the slot — one thing per press. A slot left this way hands the caret to the end of the next one, so `\frac{1|}{2}` goes to `\frac{1}{2|}` and the press after that leaves the fraction, while `\sqrt{9|}`, `x^{2|}` and `\frac{1}{2|}` all step straight out. Typing a fraction and carrying on no longer needs the arrow keys. Nothing is written by the key, and whitespace still never reaches a formula: a pasted space is dropped as before.
+
+### Fixed
+
+- The power tool left the caret in the exponent even when it had taken no base, so a power pressed on an empty row — or after an operator — opened at a slot that could not be filled in: the base was unreachable without the arrow keys, and a term written in front of the caret went into the *exponent* rather than becoming the base. A power with nothing behind it now opens at its base, which is the same rule `/` already followed with nothing in front of it. A power that does take a term behind the caret is unchanged, and so is the `^` key.
+
+### Changed
+
+- A little more room on either side of a root. The radical's bar overhangs a short radicand, so a caret that had just left the root stood against the end of that bar and read as still being under it — leaving a root looked like nothing had happened. The gap is where the caret now stands to show it is out, and it applies however the root is left: `Space`, `→`, or a click.
+
 ## 0.3.3 — 2026-08-14
 
 Documentation and repository layout. The published `dist/` is byte-for-byte what 0.3.0 shipped; this release exists so the package page carries the documentation.

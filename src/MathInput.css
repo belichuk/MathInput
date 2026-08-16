@@ -225,11 +225,17 @@
   color: var(--math-input-accent-color);
 }
 
+/*
+ * The margin is wider than a root needs for spacing alone: the radical's bar overhangs a
+ * short radicand, so a caret stepped out of the root — with `Space`, `→`, or a click —
+ * would otherwise sit against the end of that bar and read as still being under it. The
+ * gap is where the caret stands to show it is out.
+ */
 .math-input__root {
   display: inline-flex;
   flex-shrink: 0;
   align-items: flex-start;
-  margin: 0 0.08em;
+  margin: 0 0.2em;
   padding-top: 0.14em;
   vertical-align: middle;
 }

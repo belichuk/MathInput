@@ -109,6 +109,7 @@ The tools insert a square root, a cube root, a fraction, a power and brackets. S
 | `)` | Steps back out of the brackets it is typed in |
 | `*` | Written as `⋅` and emitted as `\cdot` |
 | `=` | Comes out to the row first, so it always separates whole formulas |
+| `Space` | Steps past what is in front of the caret: the rest of the run, a whole formula, or the slot itself — `\sqrt{9\|}` becomes `\sqrt{9}\|` |
 | `←` `→` | Step through every slot in reading order, then out of the formula |
 | `Home` `End` | Start and end of the row |
 | `Enter` | Adds a row |
@@ -117,7 +118,7 @@ The tools insert a square root, a cube root, a fraction, a power and brackets. S
 | `Esc` | Leaves the field |
 | `Tab` | Moves focus onward, untouched by the editor |
 
-Spaces are ignored, and a formula opened in front of written work wraps it: with the caret at `1/2+|10`, typing `(` gives `\frac{1}{2}+\left(10\right)` with the caret inside the brackets, after the `10`.
+No whitespace is ever written into a formula — pasted spaces are dropped, and the space bar moves the caret instead — and a formula opened in front of written work wraps it: with the caret at `1/2+|10`, typing `(` gives `\frac{1}{2}+\left(10\right)` with the caret inside the brackets, after the `10`.
 
 ## Styling
 
@@ -303,11 +304,14 @@ A host that genuinely needs to watch every keystroke can listen in the capture p
 
 Typing `/` turns the term immediately before the caret into the numerator of a new fraction and moves the caret to its denominator, so `10 /` becomes `\frac{10}{}`. Typing `^` and `_` do the same for powers and subscripts: `10^2` produces `10^{2}` as a *single* object, base included, so the whole power can be selected, deleted or made into a numerator at once. Where a complete formula sits directly before the caret, that formula is what gets taken — `\frac{1}{2}` followed by `/` nests the fraction into a new numerator.
 
+The power tool does the same as `^` when there is a term behind the caret, and opens at the *base* when there is not: a power pressed on an empty row has no base yet, and nothing written from inside the exponent can give it one. Every tool works this way — it opens its formula at the first slot still to be written — so `Space` or `→` carries on into the next one.
+
 A formula opened in front of written work wraps that work instead of pushing it aside. Roots and fractions behave like the brackets above: the slot the caret was going to land in takes the term in front of it, a whole formula included, so `(` typed in front of `\frac{1}{2}` brackets the fraction rather than sitting beside it. Only that one term is taken, leaving the rest of the row alone: `|10+20` with the root button gives `\sqrt{10}+20`. `/` can take a term on each side, `10|5` becoming `\frac{10}{5}`. Where nothing is written in front of the caret the formula opens empty.
 
 The editor treats a formula as a navigable object rather than plain text:
 
 - `→` and `←` step through every slot of a formula in reading order — a power's base before its exponent, a numerator before its denominator, a root's index before its radicand — and then out to the position after (or before) the whole formula.
+- `Space` steps *past* what is in front of the caret rather than into it: first the rest of what is being written, then over a whole formula standing next to it, then out of the slot itself — one thing per press, the way `Backspace` removes one thing per press. A slot left this way hands the caret to the *end* of the next one, since what is written there is written: `\frac{1|}{2}` becomes `\frac{1}{2|}`, and the next press leaves the fraction. So `1/2` typed straight through, then `Space`, carries on after the fraction rather than inside it, and a root or a power is left the same way. Nothing is written by the key, at the end of the row it does nothing, and a space in pasted text is still dropped.
 - Clicking inside any slot places the caret in that part of the formula.
 - Clicking past a formula's edge, or pressing `End`, continues after it.
 - Typing `=` comes out to the row before writing itself, so it always separates whole formulas: pressed deep inside `\frac{1}{\frac{1}{2}}` it lands after the outer fraction, never inside a slot, and `10^=2` cannot be typed at all.
