@@ -47,7 +47,7 @@ describe("renderNodes", () => {
   it("keeps the class contract the stylesheet is written against", () => {
     const host = draw(parseLatex("\\sqrt[3]{8}\\frac{1}{2}x^{2}y_{i}\\left(9\\right)"));
     for (const selector of [
-      ".math-input__root", ".math-input__root--indexed", ".math-input__root-body", ".math-input__root-symbol",
+      ".math-input__root", ".math-input__root--s", ".math-input__root--indexed", ".math-input__root-body", ".math-input__root-symbol",
       ".math-input__fraction", ".math-input__power", ".math-input__subscript", ".math-input__group", ".math-input__paren",
       ".math-input__slot--radicand", ".math-input__slot--root-index", ".math-input__slot--numerator", ".math-input__slot--denominator",
       ".math-input__slot--base", ".math-input__slot--exponent", ".math-input__slot--subscript", ".math-input__slot--group",
@@ -60,6 +60,22 @@ describe("renderNodes", () => {
     expect(blanks.map((slot) => slot.dataset.slot)).toEqual(["denominator"]);
   });
 
+  it("draws the radical, stretched to its radicand but stroked at a fixed width", () => {
+    const symbol = draw(parseLatex("\\sqrt{9}")).querySelector<SVGElement>("svg.math-input__root-symbol")!;
+    expect(symbol.getAttribute("preserveAspectRatio")).toBe("none");
+    expect(symbol.querySelector("path")?.getAttribute("vector-effect")).toBe("non-scaling-stroke");
+    // Nothing of the radical is text: no font supplies it, so no font can move it.
+    expect(symbol.textContent).toBe("");
+  });
+
+  it("draws a cube root as the same radical with an index beside it", () => {
+    const root = draw(parseLatex("\\sqrt[3]{8}")).querySelector<HTMLElement>(".math-input__root")!;
+    expect(root.className).toContain("math-input__root--indexed");
+    // The index is the root's own child, outside the body the radical is drawn over.
+    expect([...root.children].map((child) => child.getAttribute("data-slot") ?? child.className)).toEqual(["index", "math-input__root-body"]);
+    expect(root.querySelectorAll("svg.math-input__root-symbol")).toHaveLength(1);
+  });
+
   it("puts a slot's own address on it, so a click can be traced back to its array", () => {
     const nodes = parseLatex("\\frac{1}{2}");
     const host = draw(nodes);
@@ -67,5 +83,31 @@ describe("renderNodes", () => {
     const array = resolveArray(nodes, decodePath(numerator.dataset.path!))!;
     expect(array).toHaveLength(1);
     expect(isText(array[0]) && array[0].value).toBe("1");
+  });
+});
+
+describe("the size of a radical", () => {
+  const sizesIn = (latex: string) => [...draw(parseLatex(latex)).querySelectorAll<HTMLElement>(".math-input__root")].map((root) => root.className.match(/root--([sml])/)![1]);
+  const sizeOf = (latex: string) => sizesIn(latex)[0];
+
+  it("keeps the small radical for a number, however long, and for a script", () => {
+    expect(sizeOf("\\sqrt{9}")).toBe("s");
+    expect(sizeOf("\\sqrt{9+16+25}")).toBe("s");
+    expect(sizeOf("\\sqrt{x^{2}}")).toBe("s");
+    expect(sizeOf("\\sqrt{\\left(9+16\\right)}")).toBe("s");
+  });
+
+  it("takes the middle one for a fraction", () => {
+    expect(sizeOf("\\sqrt{\\frac{1}{2}}")).toBe("m");
+    expect(sizeOf("\\sqrt{1+\\frac{1}{2}}")).toBe("m");
+  });
+
+  it("takes the largest for anything deeper than that", () => {
+    expect(sizeOf("\\sqrt{\\frac{\\frac{1}{2}}{3}}")).toBe("l");
+  });
+
+  it("sizes each root by what it covers, so a root inside a root is the larger of the two", () => {
+    expect(sizesIn("\\sqrt{\\sqrt{\\frac{1}{2}}}")).toEqual(["l", "m"]);
+    expect(sizesIn("\\sqrt{2}+\\sqrt{\\frac{1}{2}}")).toEqual(["s", "m"]);
   });
 });

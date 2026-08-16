@@ -170,6 +170,12 @@ const fieldStyle = {
 | `--math-input-field-font-size` | `1.25rem` | Formula size |
 | `--math-input-font-family` | `ui-monospace, …` | Placeholder and interface text |
 | `--math-input-math-font-family` | `"STIX Two Math", …` | The mathematics |
+| `--math-input-root-stroke-s` | `0.11em` | The radical over a number or a word, bar included |
+| `--math-input-root-stroke-m` | `0.15em` | The same, over a fraction |
+| `--math-input-root-stroke-l` | `0.2em` | The same, over anything deeper |
+| `--math-input-root-width-s` | `1.05em` | How far the small radical reaches before its bar begins |
+| `--math-input-root-width-m` | `1.55em` | The same, over a fraction |
+| `--math-input-root-width-l` | `2.4em` | The same, over anything deeper |
 | `--math-input-max-width` | `48rem` | Widest the editor grows |
 
 A row that outgrows its width scrolls sideways, following the caret. Its scrollbar is drawn over the field rather than inside it, so a row only ever changes height for the formula in it — never mid-word because the text got long. Dragging that bar scrolls its row and nothing else: the row you are editing keeps the focus and the caret.

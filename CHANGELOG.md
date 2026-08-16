@@ -4,6 +4,11 @@ What changed in each version of the component. Versions follow [semantic version
 
 ## Unreleased
 
+### Changed
+
+- Square roots and cube roots are drawn to fit what they cover. The radical was a fixed drawing an em and a half tall with a bar across the top, which suited a digit and nothing else: over a fraction it was a small tick beside a tall stack, and over a stack of fractions it was barely there. It is now drawn to the exact height of its radicand — stretched, never re-proportioned, with a stroke that keeps its width while the box changes shape — and it comes in three weights, chosen from the tree by how many lines of writing the root has to cover: over a number, over a fraction, over anything deeper. Each root is weighed by its own radicand, so a root inside a root is visibly the heavier of the two.
+- The bar over a radicand is that slot's own top border, so it spans exactly what is written under it, however wide; and it is the radical's stroke rather than a width of its own, drawn in the same band, so the two are one line by construction at any size and in any font. `--math-input-root-stroke-s`, `-m`, `-l` set the weights and `--math-input-root-width-s`, `-m`, `-l` how far the radical reaches before its bar begins.
+
 ### Fixed
 
 - A divider left at the end of a wrapped toolbar line divided nothing: what it stood between was on the line below, which already separates them. Those are hidden, and only those — a divider whose group shares its line stays. Hidden rather than taken out of the flow, because removing one would give the line back the room that made it wrap, and the two would take turns undoing each other every time the field was resized.

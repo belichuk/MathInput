@@ -19,6 +19,13 @@
   --math-input-field-padding: 14px;
   --math-input-field-min-height: 60px;
   --math-input-field-font-size: 1.25rem;
+  /* The three radicals, one per height of radicand. See `.math-input__root-symbol`. */
+  --math-input-root-stroke-s: 0.11em;
+  --math-input-root-stroke-m: 0.15em;
+  --math-input-root-stroke-l: 0.2em;
+  --math-input-root-width-s: 1.05em;
+  --math-input-root-width-m: 1.55em;
+  --math-input-root-width-l: 2.4em;
   box-sizing: border-box;
   width: 100%;
   max-width: var(--math-input-max-width, 48rem);
@@ -250,29 +257,61 @@
  * gap is where the caret stands to show it is out.
  */
 .math-input__root {
+  --math-input-root-stroke: var(--math-input-root-stroke-s);
+  --math-input-root-width: var(--math-input-root-width-s);
   display: inline-flex;
   flex-shrink: 0;
-  align-items: flex-start;
+  align-items: stretch;
   margin: 0 0.2em;
-  padding-top: 0.14em;
   vertical-align: middle;
 }
 
+/*
+ * Which of the three radicals this root wears, chosen from the tree by `rootSize` in
+ * render.tsx. The drawing fits its radicand exactly whatever the size, so what the size
+ * settles is the weight: the stroke of a radical over a stack of fractions is heavier
+ * than one over a digit, as it would be if it were drawn by hand.
+ */
+.math-input__root--m {
+  --math-input-root-stroke: var(--math-input-root-stroke-m);
+  --math-input-root-width: var(--math-input-root-width-m);
+}
+
+.math-input__root--l {
+  --math-input-root-stroke: var(--math-input-root-stroke-l);
+  --math-input-root-width: var(--math-input-root-width-l);
+}
+
+/* The radical is drawn over the body's own left padding, so the radicand sets the height. */
 .math-input__root-body {
   position: relative;
   display: inline-flex;
-  padding-left: 0.82em;
+  align-items: stretch;
+  padding-left: var(--math-input-root-width);
 }
 
+/*
+ * The radical: as tall as what it covers, and half a stroke lower than the radicand's box.
+ *
+ * That half is the whole trick. The drawing's last point sits in the box's top corner and
+ * the stroke is centred on it, so it paints half above that corner and half below —
+ * which, with the box dropped by the same half, is exactly the band the radicand's border
+ * draws. Tick and bar are then one line by construction, at any size, in any font.
+ *
+ * `non-scaling-stroke` keeps that width while the box stretches; without it a tall root
+ * would be drawn with a stroke as distorted as its shape.
+ */
 .math-input__root-symbol {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: calc(var(--math-input-root-stroke) / 2);
   left: 0;
-  z-index: 1;
-  width: 100%;
-  height: 1.5em;
+  display: block;
+  /* Both sizes are given: an SVG is a replaced element, and `bottom` alone would leave it
+     at the height its own viewBox implies rather than the height of what it covers. */
+  width: var(--math-input-root-width);
+  height: calc(100% - var(--math-input-root-stroke) / 2);
   overflow: visible;
+  stroke-width: var(--math-input-root-stroke);
   pointer-events: none;
 }
 
@@ -340,21 +379,37 @@
   outline: none;
 }
 
+/*
+ * The bar is the radicand's own top border, so it covers exactly what is written under it,
+ * however wide that turns out — and it is the radical's stroke, not a width of its own,
+ * which is what makes the two read as one line rather than two marks that nearly meet.
+ */
 .math-input__slot--radicand {
   min-width: 1.2em;
   min-height: 1.35em;
-  padding: 0.02em 0.16em 0 0.2em;
+  padding: 0.1em 0.16em 0 0.1em;
+  border-top: var(--math-input-root-stroke) solid currentColor;
 }
 
+/*
+ * A cube root's index sits in the crook of the radical — where the short flick meets the
+ * descent, a little over halfway down. The radical is drawn to the height of what it
+ * covers, so that crook is further below the bar the taller the root stands, and the
+ * index rides down with it rather than staying at the top.
+ */
 .math-input__slot--root-index {
   z-index: 3;
+  align-self: flex-start;
   min-width: 0.45em;
   min-height: 0;
-  margin-right: -0.5em;
+  margin-right: -0.55em;
   padding: 0;
-  transform: translateY(-0.15em);
+  transform: translateY(0.55em);
   font-size: 0.58em;
 }
+
+.math-input__root--m .math-input__slot--root-index { transform: translateY(1.15em); }
+.math-input__root--l .math-input__slot--root-index { transform: translateY(2.15em); }
 
 .math-input__slot--numerator {
   padding-bottom: 0.08em;

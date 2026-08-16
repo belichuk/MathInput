@@ -46,10 +46,51 @@ const Paren = ({ side }: { side: "left" | "right" }) =>
     </svg>
   </span>;
 
+/**
+ * How tall what a root covers stands, in lines of ordinary text.
+ *
+ * A fraction is its two halves stacked; a script rides part of a line above or below its
+ * base; a root adds its own bar to what it covers. Read off the tree rather than measured
+ * off the page, so rendering stays a pure function of the document — nothing is drawn,
+ * measured and then drawn again on every keystroke.
+ */
+export function linesIn(nodes: FormulaNode[]): number {
+  return Math.max(1, ...nodes.map((node) => {
+    switch (node.type) {
+      case "text": return 1;
+      case "frac": return linesIn(node.numerator) + linesIn(node.denominator);
+      case "power": return linesIn(node.base) + 0.4 * linesIn(node.exponent);
+      case "subscript": return linesIn(node.base) + 0.4 * linesIn(node.subscript);
+      case "group": return linesIn(node.content);
+      case "sqrt": return linesIn(node.content) + 0.35;
+    }
+  }));
+}
+
+/**
+ * Which of the three radicals a root wears: over a number or a word, over a fraction, or
+ * over anything deeper. The drawing stretches to whatever it covers, so the size decides
+ * the weight of the stroke rather than the height — a radical over a stack of fractions
+ * drawn in the same hairline as one over a digit reads as a different mark altogether.
+ */
+export const rootSize = (nodes: FormulaNode[]): "s" | "m" | "l" => {
+  const lines = linesIn(nodes);
+  return lines <= 1.5 ? "s" : lines <= 2.3 ? "m" : "l";
+};
+
+/**
+ * The radical, drawn rather than set: a check mark whose box is exactly as tall as what
+ * the root covers, stretched vertically and never re-proportioned, with a stroke that
+ * keeps its width while the box changes shape. A character would need a font full of
+ * sizes to fit as closely, and would move whenever the host changed the maths font.
+ *
+ * The bar over the radicand is that slot's own top border, in the same width — and the
+ * box is dropped by half of it, so the stroke ending at the box's top corner covers
+ * exactly the band the border draws and the two are one line.
+ */
 const RootSymbol = () =>
-  <svg className="math-input__root-symbol" fill="none" aria-hidden="true">
-    <path d="M1 16.5 7.4 25 18 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-    <line x1="18" y1="2" x2="100%" y2="2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  <svg className="math-input__root-symbol" viewBox="0 0 24 100" preserveAspectRatio="none" fill="none" aria-hidden="true">
+    <path d="M0 53 L5 59 L10.5 100 L24 0" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
   </svg>;
 
 function renderNode(node: FormulaNode, path: Path): ReactNode {
@@ -60,8 +101,9 @@ function renderNode(node: FormulaNode, path: Path): ReactNode {
       // Rendered as an element so it has an address; React writes the run as its only text child.
       return <span key={key} className="math-input__text" data-path={key} data-blank={node.value === "" ? "" : undefined}>{node.value === "" ? CARET_PLACEHOLDER : node.value}</span>;
     case "sqrt":
-      // The body is the radical symbol's positioning context, so an index can sit beside it.
-      return <span key={key} className={`math-input__root${node.index === null ? "" : " math-input__root--indexed"}`} data-math="sqrt" data-path={key}>
+      // A cube root is the same drawing with its index beside it, which is why the index
+      // is the root's own child rather than the body's: it sits outside the radical.
+      return <span key={key} className={`math-input__root math-input__root--${rootSize(node.content)}${node.index === null ? "" : " math-input__root--indexed"}`} data-math="sqrt" data-path={key}>
         {node.index === null ? null : slot("index")}
         <span className="math-input__root-body"><RootSymbol />{slot("content")}</span>
       </span>;
