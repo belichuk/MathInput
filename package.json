@@ -27,7 +27,8 @@
   ],
   "files": [
     "dist",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "MIGRATING-0.5.0.md"
   ],
   "main": "./dist/math-input.cjs",
   "module": "./dist/math-input.js",
