@@ -1,4 +1,5 @@
 import { type FormulaNode, TIMES } from "./model";
+import { specFor } from "./registry";
 
 /**
  * `\cdot` always takes a trailing space: whatever follows may be a letter — including one
@@ -7,16 +8,12 @@ import { type FormulaNode, TIMES } from "./model";
  */
 const serializeText = (value: string): string => value.split(TIMES).join("\\cdot ");
 
-function serializeNode(node: FormulaNode): string {
-  switch (node.type) {
-    case "text": return serializeText(node.value);
-    case "sqrt": return node.index === null ? `\\sqrt{${serializeToLatex(node.content)}}` : `\\sqrt[${serializeToLatex(node.index)}]{${serializeToLatex(node.content)}}`;
-    case "frac": return `\\frac{${serializeToLatex(node.numerator)}}{${serializeToLatex(node.denominator)}}`;
-    case "power": return `${serializeToLatex(node.base)}^{${serializeToLatex(node.exponent)}}`;
-    case "subscript": return `${serializeToLatex(node.base)}_{${serializeToLatex(node.subscript)}}`;
-    case "group": return `\\left(${serializeToLatex(node.content)}\\right)`;
-  }
-}
+/**
+ * A run is its own text; everything else is written the way its registry row says, which is
+ * the one template per construct that used to be a switch arm here.
+ */
+const serializeNode = (node: FormulaNode): string =>
+  (node.type === "text" ? serializeText(node.value) : specFor(node).write(node, serializeToLatex));
 
 /**
  * Every sequence's LaTeX, remembered against the sequence itself.

@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
-import { type BranchKey, type FormulaNode, type Path, branchesOf, encodePath, isBlank, slotPath, stepOf } from "./model";
+import { type BranchKey, type CompoundNode, type FormulaNode, type Path, branchesOf, encodePath, isBlank, slotPath, stepOf } from "./model";
+import { slotCodeOf, specFor } from "./registry";
 
 /**
  * Renders a formula tree as real JSX. Every element carries a `data-path` holding the
@@ -57,23 +58,11 @@ export function tokeniseRun(value: string, afterTerm: boolean): RunToken[] {
   return tokens;
 }
 
-const SLOT_MODIFIER: Record<string, string> = {
-  "sqrt:content": "radicand",
-  "sqrt:index": "root-index",
-  "frac:numerator": "numerator",
-  "frac:denominator": "denominator",
-  "power:base": "base",
-  "power:exponent": "exponent",
-  "subscript:base": "base",
-  "subscript:subscript": "subscript",
-  "group:content": "group",
-};
-
-function Slot({ node, branch, path }: { node: FormulaNode; branch: BranchKey; path: Path }) {
+function Slot({ node, branch, path }: { node: CompoundNode; branch: BranchKey; path: Path }) {
   const nodes = branchesOf(node).find((candidate) => candidate.key === branch)?.nodes ?? [];
   const here = slotPath(path, branch);
   // `data-blank` drives the dotted placeholder: a slot is never CSS-`:empty`, it always holds a text run.
-  return <span className={`math-input__slot math-input__slot--${SLOT_MODIFIER[`${node.type}:${branch}`]}`} data-slot={branch} data-path={encodePath(here)} data-blank={isBlank(nodes) ? "" : undefined}>{renderNodes(nodes, here)}</span>;
+  return <span className={`math-input__slot math-input__slot--${slotCodeOf(node.type, branch)}`} data-slot={branch} data-path={encodePath(here)} data-blank={isBlank(nodes) ? "" : undefined}>{renderNodes(nodes, here)}</span>;
 }
 
 /**
@@ -97,16 +86,7 @@ const Paren = ({ side }: { side: "left" | "right" }) =>
  * measured and then drawn again on every keystroke.
  */
 export function linesIn(nodes: FormulaNode[]): number {
-  return Math.max(1, ...nodes.map((node) => {
-    switch (node.type) {
-      case "text": return 1;
-      case "frac": return linesIn(node.numerator) + linesIn(node.denominator);
-      case "power": return linesIn(node.base) + 0.4 * linesIn(node.exponent);
-      case "subscript": return linesIn(node.base) + 0.4 * linesIn(node.subscript);
-      case "group": return linesIn(node.content);
-      case "sqrt": return linesIn(node.content) + 0.35;
-    }
-  }));
+  return Math.max(1, ...nodes.map((node) => (node.type === "text" ? 1 : specFor(node).lines(node, linesIn))));
 }
 
 /**
@@ -137,26 +117,29 @@ const RootSymbol = () =>
 
 function renderNode(node: FormulaNode, path: Path): ReactNode {
   const key = encodePath(path);
+  if (node.type === "text") {
+    /**
+     * Rendered as an element so it has an address. A run with nothing to space is still one
+     * text node, exactly as before — which keeps the common case unchanged and its
+     * translation back into a model position a single step. A run holding an operation is
+     * split at each side of it, and the addressed element is still the run: the spans inside
+     * carry no address of their own, and `selection.ts` walks across them.
+     */
+    const tokens = node.value === "" ? [] : tokeniseRun(node.value, stepOf(path).index > 0);
+    const plain = tokens.length === 1 && tokens[0].kind === "plain";
+    return <span key={key} className="math-input__text" data-path={key} data-blank={node.value === "" ? "" : undefined}>
+      {node.value === "" || plain
+        ? (node.value === "" ? CARET_PLACEHOLDER : node.value)
+        : tokens.map((token, at) => (token.kind === "plain"
+          ? token.text
+          : <span key={at} className={`math-input__token math-input__token--${token.kind}`}>{token.text}</span>))}
+    </span>;
+  }
+
+  // Past the run, the node is a construct — which is what lets a slot be addressed by the
+  // registry's name for it rather than by a per-kind table.
   const slot = (branch: BranchKey) => <Slot key={branch} node={node} branch={branch} path={path} />;
   switch (node.type) {
-    case "text": {
-      /**
-       * Rendered as an element so it has an address. A run with nothing to space is still
-       * one text node, exactly as before — which keeps the common case unchanged and its
-       * translation back into a model position a single step. A run holding an operation is
-       * split at each side of it, and the addressed element is still the run: the spans
-       * inside carry no address of their own, and `selection.ts` walks across them.
-       */
-      const tokens = node.value === "" ? [] : tokeniseRun(node.value, stepOf(path).index > 0);
-      const plain = tokens.length === 1 && tokens[0].kind === "plain";
-      return <span key={key} className="math-input__text" data-path={key} data-blank={node.value === "" ? "" : undefined}>
-        {node.value === "" || plain
-          ? (node.value === "" ? CARET_PLACEHOLDER : node.value)
-          : tokens.map((token, at) => (token.kind === "plain"
-            ? token.text
-            : <span key={at} className={`math-input__token math-input__token--${token.kind}`}>{token.text}</span>))}
-      </span>;
-    }
     case "sqrt":
       // A cube root is the same drawing with its index beside it, which is why the index
       // is the root's own child rather than the body's: it sits outside the radical.

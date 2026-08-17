@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type CompoundNode, type FormulaNode, frac, group, isNormalized, normalize, power, sqrt, subscript, text } from "./model";
+import { frac, group, isNormalized, normalize, power, sqrt, subscript, text } from "./model";
 import { parseLatex } from "./parse";
 import { serializeToLatex } from "./serialize";
+// The generator moved to `testing.ts` when the registry made it worth sharing: it builds
+// constructs from the table, so a new row joins this corpus without being named here.
+import { createRandom, randomArray } from "./testing";
 
 describe("serializeToLatex", () => {
   it("writes each node in its LaTeX form", () => {
@@ -29,41 +32,6 @@ describe("serializeToLatex", () => {
     expect(serializeToLatex([text(""), group(), text("")])).toBe("\\left(\\right)");
   });
 });
-
-/** Deterministic corpus generator — a failure here reproduces exactly. */
-function createRandom(seed: number) {
-  let state = seed;
-  return () => {
-    state = (state * 1664525 + 1013904223) % 4294967296;
-    return state / 4294967296;
-  };
-}
-
-const SAFE_CHARACTERS = "0123456789xyab+-=.,⋅";
-type Random = () => number;
-const pick = <Item,>(random: Random, items: readonly Item[]): Item => items[Math.floor(random() * items.length)];
-
-function randomText(random: Random): string {
-  return Array.from({ length: Math.floor(random() * 4) }, () => pick(random, [...SAFE_CHARACTERS])).join("");
-}
-
-function randomCompound(random: Random, depth: number): CompoundNode {
-  switch (pick(random, ["sqrt", "nthRoot", "frac", "power", "subscript", "group"] as const)) {
-    case "sqrt": return sqrt(randomArray(random, depth));
-    case "nthRoot": return sqrt(randomArray(random, depth), randomArray(random, depth));
-    case "frac": return frac(randomArray(random, depth), randomArray(random, depth));
-    case "power": return power(randomArray(random, depth), randomArray(random, depth));
-    case "subscript": return subscript(randomArray(random, depth), randomArray(random, depth));
-    case "group": return group(randomArray(random, depth));
-  }
-}
-
-function randomArray(random: Random, depth: number): FormulaNode[] {
-  const nodes: FormulaNode[] = [text(randomText(random))];
-  const count = depth <= 0 ? 0 : Math.floor(random() * 3);
-  for (let index = 0; index < count; index += 1) nodes.push(randomCompound(random, depth - 1), text(randomText(random)));
-  return nodes;
-}
 
 describe("round trip", () => {
   const random = createRandom(20260813);

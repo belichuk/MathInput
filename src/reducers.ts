@@ -1,8 +1,9 @@
 import {
   type BranchKey, type CaretPosition, type CompoundNode, type FormulaNode, type Path, type SelectionRange,
-  arrayPathOf, branchKeys, branchOf, collapsedAt, emptyContent, enclosingNodePath, frac, group, isCollapsed, isCompound, isShallowEmpty, isText,
-  isBlank, LEADING_TERM, nextBoundary, normalize, orderedRange, power, previousBoundary, resolve, resolveArray, resolveNode, slotPath, sqrt, stepOf, subscript, text, textAt, TIMES, TRAILING_TERM, updateArray, withBranch,
+  arrayPathOf, branchKeys, branchOf, buildConstruct, collapsedAt, emptyContent, enclosingNodePath, isCollapsed, isCompound, isShallowEmpty, isText,
+  isBlank, LEADING_TERM, nextBoundary, normalize, orderedRange, previousBoundary, resolve, resolveArray, resolveNode, slotPath, stepOf, text, textAt, TIMES, TRAILING_TERM, updateArray, withBranch,
 } from "./model";
+import { type AnyInsertion, type InsertKind, KEY_INSERTIONS, TOOL_INSERTIONS, specFor, specOf } from "./registry";
 import { cleanFormulaText, parseLatex } from "./parse";
 import { endOfArray, exitBackward, exitForward, nextPosition, positionAfterNode, previousPosition, rowEnd, rowStart, skipForward, startOfArray } from "./caret";
 
@@ -14,7 +15,8 @@ import { endOfArray, exitBackward, exitForward, nextPosition, positionAfterNode,
  */
 
 export type RowState = { content: FormulaNode[]; selection: SelectionRange };
-export type CompoundKind = "sqrt" | "cubeRoot" | "frac" | "power" | "subscript" | "group";
+/** The insertable kinds, which are the registry's triggers: `cubeRoot` builds a `sqrt`. */
+export type CompoundKind = InsertKind;
 
 export type Action =
   | { type: "insertText"; text: string }
@@ -190,33 +192,32 @@ function takeFollowingTerm(array: FormulaNode[], index: number, offset: number):
   return { array, index, offset, term: emptyContent() };
 }
 
-const buildNode = (kind: CompoundKind, term: FormulaNode[]): CompoundNode => {
-  switch (kind) {
-    case "sqrt": return sqrt();
-    // A root of a written index, with the index already written: the general
-    // `\sqrt[n]{…}` is still read and kept, it is just not what this inserts.
-    case "cubeRoot": return sqrt(emptyContent(), [text("3")]);
-    case "frac": return frac(term, emptyContent());
-    case "power": return power(term, emptyContent());
-    case "subscript": return subscript(term, emptyContent());
-    case "group": return group();
-  }
+/**
+ * The construct a trigger opens, built from its registry row: the adopted term goes into the
+ * slot that construct adopts into, whatever the trigger was, and anything the row says is
+ * written already is written.
+ */
+const buildNode = (insertion: AnyInsertion, term: FormulaNode[]): CompoundNode => {
+  const written: Partial<Record<BranchKey, FormulaNode[]>> = {};
+  for (const [branch, value] of Object.entries(insertion.writes ?? {})) written[branch as BranchKey] = [text(value as string)];
+  if (insertion.adopts && !isBlank(term)) written[specOf(insertion.kind).adopted] = term;
+  return buildConstruct(insertion.kind, written);
 };
 
-/** `emptyCaretBranch` is where the caret goes when there was no term to capture: `/` with nothing in front of it opens an empty fraction to fill in from the top. */
-function insertCompound(state: RowState, kind: CompoundKind, options: { capture: boolean; caretBranch: BranchKey; emptyCaretBranch?: BranchKey }): RowState {
+/** `caretWithoutTerm` is where the caret goes when there was no term to capture: `/` with nothing in front of it opens an empty fraction to fill in from the top. */
+function insertCompound(state: RowState, insertion: AnyInsertion): RowState {
   const { content, caret } = takeSelection(state);
   const target = resolve(content, caret.path);
   if (!target || !isText(target.array[target.index])) return state;
-  const captured = options.capture
+  const captured = insertion.adopts
     ? takePrecedingTerm(target.array, target.index, caret.offset)
     : { array: target.array, index: target.index, offset: caret.offset, term: emptyContent() };
-  const caretBranch = isBlank(captured.term) ? options.emptyCaretBranch ?? options.caretBranch : options.caretBranch;
+  const caretBranch: BranchKey = isBlank(captured.term) ? insertion.caretWithoutTerm ?? insertion.caret : insertion.caret;
   // The slot the caret is about to land in takes whatever is written directly in front of
   // it, so brackets, a root or a fraction opened before a term wrap that term rather than
   // pushing it aside — and the caret waits at the end of it, still inside the new slot.
   const wrapped = takeFollowingTerm(captured.array, captured.index, captured.offset);
-  const node = buildNode(kind, captured.term);
+  const node = buildNode(insertion, captured.term);
   const value = valueOf(wrapped.array[wrapped.index]);
   const arrayPath = arrayPathOf(caret.path);
   const array = [
@@ -295,18 +296,11 @@ export function reduce(state: RowState, action: Action): RowState {
       const { content, caret } = takeSelection(state);
       return insertTextAt(content, caret, value, replacesSign(content, caret, value) ? 1 : 0);
     }
-    case "insertCompound": {
-      const script = action.kind === "power" || action.kind === "subscript";
-      const caretBranch: BranchKey = action.kind === "power" ? "exponent" : action.kind === "subscript" ? "subscript" : action.kind === "frac" ? "numerator" : "content";
-      // A tool opens a formula at the first slot that still has to be written. With a term
-      // in front of it a power takes that term as its base and the exponent is what is
-      // left, but pressed with nothing in front it has no base yet — and no key writes one
-      // from inside the exponent, so that is where the caret waits. `emptyCaretBranch` is
-      // the same mechanism that opens `/` from the top when nothing precedes it.
-      return insertCompound(state, action.kind, script ? { capture: true, caretBranch, emptyCaretBranch: "base" } : { capture: false, caretBranch });
-    }
-    case "divide": return insertCompound(state, "frac", { capture: true, caretBranch: "denominator", emptyCaretBranch: "numerator" });
-    case "script": return insertCompound(state, action.kind, { capture: true, caretBranch: action.kind === "power" ? "exponent" : "subscript" });
+    // Which slot each of these opens at, and whether it adopts the term in front of it, is
+    // the registry's business rather than this file's.
+    case "insertCompound": return insertCompound(state, TOOL_INSERTIONS[action.kind]);
+    case "divide": return insertCompound(state, KEY_INSERTIONS.divide);
+    case "script": return insertCompound(state, KEY_INSERTIONS[action.kind]);
     case "equals": {
       // `=` separates whole formulas, so it is written between them: typed anywhere
       // inside one, however deep, it comes out to the row and lands after the whole
@@ -317,9 +311,13 @@ export function reduce(state: RowState, action: Action): RowState {
       return insertTextAt(content, caret, "=");
     }
     case "closeGroup": {
+      // The last reducer that named a construct. It asks the registry which construct this
+      // character closes instead, so `|` closing an absolute value is a row rather than a
+      // second arm here.
       const nodePath = isCollapsed(state.selection) ? enclosingNodePath(state.selection.focus.path) : null;
       const node = nodePath ? resolveNode(state.content, nodePath) : null;
-      if (nodePath && node?.type === "group") return { content: state.content, selection: collapsedAt({ path: [...arrayPathOf(nodePath), { index: stepOf(nodePath).index + 1 }], offset: 0 }) };
+      const closes = isCompound(node) && specFor(node).closedBy === ")";
+      if (nodePath && closes) return { content: state.content, selection: collapsedAt({ path: [...arrayPathOf(nodePath), { index: stepOf(nodePath).index + 1 }], offset: 0 }) };
       const { content, caret } = takeSelection(state);
       return insertTextAt(content, caret, ")");
     }

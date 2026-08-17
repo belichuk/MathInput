@@ -3,7 +3,11 @@
  *
  * Pure data — no DOM, no LaTeX, no React. Everything that interprets the shape of a
  * `Path` lives here so that reducers, rendering, and selection sync all agree on it.
+ *
+ * What each construct *is* lives in `registry.ts`, which this file reads. The dependency runs
+ * one way: the registry imports nothing from here but types.
  */
+import { type ConstructKind, specOf } from "./registry";
 
 export type TextNode = { type: "text"; value: string };
 /** `index` is `null` for a plain square root, an array for `\sqrt[n]{…}`. */
@@ -59,16 +63,32 @@ export const isCompound = (node: FormulaNode | null | undefined): node is Compou
 /**
  * Branches in visual left-to-right order — the order arrow navigation walks them.
  * Never rely on object key order anywhere else; ask this function.
+ *
+ * Read from the registry rather than written out per kind, which is what makes traversal,
+ * normalisation, path comparison and range deletion follow a new construct without any of them
+ * being touched. An optional slot that is absent is simply not a branch, which is how a plain
+ * square root has one and a root with an index has two.
  */
 export function branchesOf(node: FormulaNode): Branch[] {
-  switch (node.type) {
-    case "text": return [];
-    case "sqrt": return node.index === null ? [{ key: "content", nodes: node.content }] : [{ key: "index", nodes: node.index }, { key: "content", nodes: node.content }];
-    case "frac": return [{ key: "numerator", nodes: node.numerator }, { key: "denominator", nodes: node.denominator }];
-    case "power": return [{ key: "base", nodes: node.base }, { key: "exponent", nodes: node.exponent }];
-    case "subscript": return [{ key: "base", nodes: node.base }, { key: "subscript", nodes: node.subscript }];
-    case "group": return [{ key: "content", nodes: node.content }];
+  if (node.type === "text") return [];
+  const branches: Branch[] = [];
+  for (const slot of specOf(node.type).slots) {
+    // The one place the model reads a slot by name: the registry guarantees the name is one
+    // this kind has, which is what its per-kind slot typing is for.
+    const nodes = (node as unknown as Record<BranchKey, FormulaNode[] | null | undefined>)[slot.key];
+    if (nodes) branches.push({ key: slot.key, nodes });
   }
+  return branches;
+}
+
+/**
+ * Builds a construct from the registry's description of it: every slot it is not given starts
+ * empty, and an optional slot it is not given is absent rather than empty.
+ */
+export function buildConstruct(kind: ConstructKind, filled: Partial<Record<BranchKey, FormulaNode[]>> = {}): CompoundNode {
+  const node: Record<string, unknown> = { type: kind };
+  for (const slot of specOf(kind).slots) node[slot.key] = filled[slot.key] ?? (slot.optional ? null : emptyContent());
+  return node as unknown as CompoundNode;
 }
 
 export const branchOf = (node: FormulaNode, key: BranchKey): FormulaNode[] | null => branchesOf(node).find((branch) => branch.key === key)?.nodes ?? null;
