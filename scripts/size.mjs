@@ -28,8 +28,26 @@ const KB = 1000;
  * any of the 0.5.0 work: not a limit, but the number every later one is read against, so
  * a regression shows up as movement rather than as merely "under budget".
  */
+/**
+ * The ceiling moved from 13.5 KB to 20 during the release, and it is worth writing down why
+ * rather than leaving a number that looks arbitrary.
+ *
+ * The plan set 13.5 by adding up estimated savings and additions. Two of them were wrong in
+ * opposite directions — the minifier gave more than expected, the icons far less — and the
+ * work that was *not* estimated at all turned out to cost the most: memoising the rows, and
+ * the typography, which is a tokeniser, a script ladder, four delimiters and a continuous
+ * radical rather than the single line item it was budgeted as. By the vertical arrows there
+ * were 217 bytes left and six of M4's seven steps still to write.
+ *
+ * The documented cut order was exhausted by then: the `grid` stub was never built, the
+ * tokeniser is the typography and cannot be given back, and making spoken math opt-in frees
+ * nothing until spoken math exists. What was left to cut was product, and decision D-3 is
+ * that behaviour wins over bytes and the number moves instead. So it moved. It is still a
+ * hard gate and still fails the build — a ceiling that is never tested is not a ceiling — and
+ * the `vs 0.3.7` column is what actually catches drift between one commit and the next.
+ */
 const TARGETS = [
-  { file: "dist/math-input.js", label: "ESM bundle", budget: 13.5 * KB, baseline: 12_951 },
+  { file: "dist/math-input.js", label: "ESM bundle", budget: 20 * KB, baseline: 12_951 },
   // Reported, never gated: no browser loads the CommonJS build, and it exists for
   // bundlers that still ask for one. It is here because it is the more honest account of
   // how much code there really is — the ESM emit is the pretty-printed one.

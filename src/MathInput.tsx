@@ -1,6 +1,6 @@
 import { type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./MathInput.css";
-import { type FormulaNode, type SelectionRange, collapsedAt, isBlank, samePosition } from "./model";
+import { type FormulaNode, type SelectionRange, collapsedAt, encodePath, isBlank, samePosition } from "./model";
 import { clampPosition, rowEnd, rowStart, stepVertically } from "./caret";
 import { type Action, type CompoundKind, type RowState, reduce } from "./reducers";
 import { parseLatex } from "./parse";
@@ -282,6 +282,8 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
   const thumbs = useRef(new Map<string, HTMLDivElement>());
   /** How many rows the ornaments were last drawn for, which is how a row appearing is noticed. */
   const drawnRows = useRef(-1);
+  /** The slot currently wearing the caret mark, so putting it elsewhere is two attribute writes. */
+  const markedSlot = useRef<HTMLElement | null>(null);
   const labelId = useId();
   if (published.current === null) published.current = latexOf(state.rows);
 
@@ -363,6 +365,27 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     // ---- write ----
     for (const row of rows) paintRow(row);
     for (const { divider, together } of dividers) divider.style.visibility = together ? "" : "hidden";
+
+    /**
+     * Which slot the caret is in, marked on the element rather than rendered into it.
+     *
+     * An ornament, like the scroll indicator and the dividers: written from here after every
+     * render, idempotent, and costing no re-render at all — which matters, because the slot
+     * under the caret changes on almost every keystroke and re-rendering the row to say so
+     * would undo the memoisation that makes a keystroke cheap. Rendering stays a pure
+     * function of the document, since the document does not know where the caret is.
+     *
+     * A caret path names the run it sits in; the slot holding that run is the same path
+     * without its last step, which is exactly the address the renderer stamped on the slot.
+     */
+    const inSlot = caret && caretField
+      ? caretField.querySelector<HTMLElement>(`[data-slot][data-path="${encodePath(caret.range.focus.path.slice(0, -1))}"]`)
+      : null;
+    if (markedSlot.current !== inSlot) {
+      markedSlot.current?.removeAttribute("data-caret-slot");
+      inSlot?.setAttribute("data-caret-slot", "");
+      markedSlot.current = inSlot;
+    }
   }, [measureRow, paintRow, measureDividers]);
 
   const syncEveryRow = useCallback(() => { syncFrame(fields.current.keys()); }, [syncFrame]);
@@ -734,7 +757,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     repair,
     startComposition: () => { composing.current = true; },
     endComposition,
-    paste: (rowId, text) => dispatch(rowId, { type: "insertText", text }),
+    paste: (rowId, text) => dispatch(rowId, { type: "paste", text }),
     pickPosition,
     dragScrollbar,
   }), [disabled, placeholder, ariaLabel, showOperators, showNavigation, focusRow, dispatch, removeRow, createRow, focusField, paintRow, measureRow, repair, endComposition, pickPosition, dragScrollbar]);

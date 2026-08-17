@@ -364,3 +364,39 @@ describe("the space bar", () => {
     expect(reduce(state, skip)).toBe(state);
   });
 });
+
+describe("pasting", () => {
+  it("reads pasted LaTeX as the formula it describes", () => {
+    const state = reduce(rowOf("x=", top(0, 2)), { type: "paste", text: "\\frac{1}{2}" });
+    expect(sketch(state)).toBe("x=\\frac{1}{2}|");
+    // A formula, not its source: the caret can be moved into it.
+    expect(latexOf(state)).toBe("x=\\frac{1}{2}");
+  });
+
+  it("leaves the caret after what was pasted, with whatever followed it still ahead", () => {
+    const state = reduce(rowOf("ab", top(0, 1)), { type: "paste", text: "\\sqrt{9}c" });
+    expect(sketch(state)).toBe("a\\sqrt{9}c|b");
+  });
+
+  it("counts every compound, so the caret lands right however many were pasted", () => {
+    const state = reduce(rowOf(""), { type: "paste", text: "\\frac{1}{2}+\\sqrt{3}+x^{2}" });
+    expect(sketch(state)).toBe("\\frac{1}{2}+\\sqrt{3}+x^{2}|");
+  });
+
+  it("writes text with no structure in it literally, the way typing does", () => {
+    // `/` is not LaTeX, whatever the `/` key does when pressed, so this is text.
+    expect(sketch(reduce(rowOf(""), { type: "paste", text: "1/2+3" }))).toBe("1/2+3|");
+    expect(sketch(reduce(rowOf(""), { type: "paste", text: "2x" }))).toBe("2x|");
+  });
+
+  it("replaces a selection rather than pasting beside it", () => {
+    const state = reduce(rowSelecting("abc", top(0, 0), top(0, 3)), { type: "paste", text: "\\sqrt{9}" });
+    expect(sketch(state)).toBe("\\sqrt{9}|");
+  });
+
+  it("keeps the row alternating whatever was pasted", () => {
+    for (const pasted of ["\\frac{1}{2}", "x^{2}_", "\\left(9\\right)", "\\sqrt{", "}}{{", ""]) {
+      expect(isNormalized(reduce(rowOf("ab", top(0, 1)), { type: "paste", text: pasted }).content), pasted).toBe(true);
+    }
+  });
+});

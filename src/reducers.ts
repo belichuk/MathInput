@@ -20,6 +20,8 @@ export type CompoundKind = InsertKind;
 
 export type Action =
   | { type: "insertText"; text: string }
+  /** Pasted text, read as a formula when it is one and written literally when it is not. */
+  | { type: "paste"; text: string }
   /** Toolbar insertion. Powers and subscripts adopt the preceding term, as typing `^`/`_` does. */
   | { type: "insertCompound"; kind: CompoundKind }
   /** The `/` key: turn the preceding term into a numerator. */
@@ -204,6 +206,37 @@ const buildNode = (insertion: AnyInsertion, term: FormulaNode[]): CompoundNode =
   return buildConstruct(insertion.kind, written);
 };
 
+/**
+ * Splices a formula read from pasted text into the run the caret sits in.
+ *
+ * The caret ends after what was pasted rather than before it, which is where a paste leaves it
+ * everywhere else. Working out where that is takes no searching: every compound pasted brings
+ * the run that follows it, so the run the caret ends in sits two places further along per
+ * compound, and the caret sits as far into it as the pasted text's own trailing run is long —
+ * that run and whatever the caret was in front of having merged into one.
+ */
+function insertNodesAt(content: FormulaNode[], caret: CaretPosition, nodes: FormulaNode[]): RowState {
+  const target = resolve(content, caret.path);
+  if (!target || !isText(target.array[target.index])) return { content, selection: collapsedAt(caret) };
+  const value = valueOf(target.array[target.index]);
+  const array = normalize([
+    ...target.array.slice(0, target.index),
+    text(value.slice(0, caret.offset)),
+    ...nodes,
+    text(value.slice(caret.offset)),
+    ...target.array.slice(target.index + 1),
+  ]);
+  const arrayPath = arrayPathOf(caret.path);
+  const tail = nodes[nodes.length - 1];
+  return {
+    content: updateArray(content, arrayPath, () => array),
+    selection: collapsedAt({
+      path: [...arrayPath, { index: target.index + 2 * nodes.filter(isCompound).length }],
+      offset: isText(tail) ? tail.value.length : 0,
+    }),
+  };
+}
+
 /** `caretWithoutTerm` is where the caret goes when there was no term to capture: `/` with nothing in front of it opens an empty fraction to fill in from the top. */
 function insertCompound(state: RowState, insertion: AnyInsertion): RowState {
   const { content, caret } = takeSelection(state);
@@ -298,6 +331,18 @@ export function reduce(state: RowState, action: Action): RowState {
     }
     // Which slot each of these opens at, and whether it adopts the term in front of it, is
     // the registry's business rather than this file's.
+    /**
+     * `parse.ts` exists for exactly this: a tolerant reader that takes whatever it is given.
+     * Pasted LaTeX arrives as the formula it describes rather than as its own source code —
+     * `\\frac{1}{2}` becomes a fraction the caret can be moved around inside. Text with no
+     * structure in it is ordinary typing and goes the ordinary way, sign-correction and all.
+     */
+    case "paste": {
+      const parsed = parseLatex(action.text);
+      if (!parsed.some(isCompound)) return reduce(state, { type: "insertText", text: action.text });
+      const { content, caret } = takeSelection(state);
+      return insertNodesAt(content, caret, parsed);
+    }
     case "insertCompound": return insertCompound(state, TOOL_INSERTIONS[action.kind]);
     case "divide": return insertCompound(state, KEY_INSERTIONS.divide);
     case "script": return insertCompound(state, KEY_INSERTIONS[action.kind]);

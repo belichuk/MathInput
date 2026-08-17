@@ -257,6 +257,16 @@
   cursor: grabbing;
 }
 
+/*
+ * The slot the caret is in. On a formula of any depth the one question that is hard to answer
+ * from the shape alone is *which box am I writing in*, and a caret is a thin line in a field
+ * full of them. Marked by the caret pass rather than rendered, so it costs no re-render.
+ */
+.math-input__slot[data-caret-slot] {
+  background: var(--math-input-accent-soft-color);
+  border-radius: 4px;
+}
+
 /* Positioned, not in flow: an empty row still holds the text run the caret lives in,
    and a block-level placeholder would push it onto a second line. */
 .math-input__field[data-empty]::before {
