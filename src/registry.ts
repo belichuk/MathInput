@@ -53,14 +53,22 @@ type SlotSpec<K extends ConstructKind> = {
   code: string;
   /** A slot that can be absent altogether rather than merely empty: a plain root has no index. */
   optional?: true;
+  /**
+   * A slot set smaller than what surrounds it, one rung down the script ladder. Marked rather
+   * than styled, because how far down depends on how many rungs have already been descended
+   * and only the renderer walking the tree knows that.
+   */
+  script?: true;
 };
 
 /**
- * The shapes a fence is drawn in. One so far, because the editor draws only round brackets;
- * the union is here rather than a bare string so that adding `[`, `{` or `|` is a path the
- * compiler asks for rather than a delimiter that silently fails to appear.
+ * The shapes a fence is drawn in. The union rather than a bare string, so that adding one is
+ * a path the compiler asks for rather than a delimiter that silently fails to appear.
+ *
+ * Only `paren` has a construct so far. The others are drawn and waiting: an absolute value is
+ * a `bar` fence and nothing else, which is the point of the shape being a datum.
  */
-export type FenceShape = "paren";
+export type FenceShape = "paren" | "bracket" | "brace" | "bar";
 
 /**
  * How a construct is *drawn*, as a layout shape and the slots that fill it rather than as
@@ -125,7 +133,7 @@ export type ConstructSpec<K extends ConstructKind> = {
  */
 export type AnySpec = {
   kind: ConstructKind;
-  slots: readonly { key: BranchKey; code: string; optional?: true }[];
+  slots: readonly { key: BranchKey; code: string; optional?: true; script?: true }[];
   draw: AnyDraw;
   adopted: BranchKey;
   vertical?: readonly (readonly [BranchKey, BranchKey])[];
@@ -159,7 +167,7 @@ export const CONSTRUCTS = {
   }),
   power: construct({
     kind: "power",
-    slots: [{ key: "base", code: "base" }, { key: "exponent", code: "exponent" }],
+    slots: [{ key: "base", code: "base" }, { key: "exponent", code: "exponent", script: true }],
     draw: { primitive: "attach", className: "math-input__power", base: "base", script: "exponent" },
     adopted: "base",
     vertical: [["exponent", "base"]],
@@ -169,7 +177,7 @@ export const CONSTRUCTS = {
   }),
   subscript: construct({
     kind: "subscript",
-    slots: [{ key: "base", code: "base" }, { key: "subscript", code: "subscript" }],
+    slots: [{ key: "base", code: "base" }, { key: "subscript", code: "subscript", script: true }],
     draw: { primitive: "attach", className: "math-input__subscript", base: "base", script: "subscript" },
     adopted: "base",
     vertical: [["base", "subscript"]],
@@ -199,9 +207,8 @@ export const CONSTRUCTS = {
 export const specOf = (kind: ConstructKind): AnySpec => CONSTRUCTS[kind] as unknown as AnySpec;
 export const specFor = (node: CompoundNode): AnySpec => specOf(node.type);
 
-/** The stylesheet's name for a slot. */
-export const slotCodeOf = (kind: ConstructKind, branch: BranchKey): string =>
-  specOf(kind).slots.find((slot) => slot.key === branch)?.code ?? "";
+/** One slot's row, which carries both what the stylesheet calls it and whether it is set smaller. */
+export const slotOf = (kind: ConstructKind, branch: BranchKey) => specOf(kind).slots.find((slot) => slot.key === branch);
 
 // ---------------------------------------------------------------------------
 

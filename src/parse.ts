@@ -1,7 +1,7 @@
 import { type FormulaNode, type TextNode, TIMES, TRAILING_TERM, frac, group, isText, normalize, power, sqrt, subscript, text } from "./model";
 
 /** Formulas never carry whitespace, and every way of writing multiplication becomes `⋅`. */
-export const cleanFormulaText = (value: string): string => value.replace(/\s+/g, "").replace(/[*×·]/g, TIMES);
+export const cleanFormulaText = (value: string): string => value.replace(/\s+/g, "").replace(/[*×·]/g, TIMES).replace(/−/g, "-");
 
 type Stop = "end" | "brace" | "bracket" | "paren";
 

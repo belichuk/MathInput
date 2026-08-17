@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 import { type CaretPosition, type FormulaNode } from "./model";
 import { parseLatex } from "./parse";
+import { serializeToLatex } from "./serialize";
 import { CARET_PLACEHOLDER, renderNodes } from "./render";
 import { applySelection, caretScrollOffset, positionFromDom, positionFromPoint, repairField, selectionFromDom } from "./selection";
 
@@ -81,7 +82,9 @@ describe("reading a position back out of the DOM", () => {
   it("takes the run the offset is inside, and clamps to its length", () => {
     const { field } = mount("abc");
     const run = at(field, "0");
-    expect(run.childNodes).toHaveLength(1); // nothing to space, so one text node
+    // All one class, so the run wears the class itself and keeps its single text node.
+    expect(run.childNodes).toHaveLength(1);
+    expect(run.className).toContain("math-input__token--variable");
     expect(positionFromDom(field, run.firstChild!, 2)).toEqual(there("0", 2));
     // A native selection can name an offset past the text the model has, and does after an
     // IME has been writing into the element; the model's length wins.
@@ -149,7 +152,7 @@ describe("a run split either side of an operation", () => {
   it("splits the run without changing its text or its address", () => {
     const { field } = mount("1+2");
     const run = at(field, "0");
-    expect(nodesOf(run)).toEqual(["1", "<math-input__token--operator>+</>", "2"]);
+    expect(nodesOf(run)).toEqual(["<math-input__token--number>1</>", "<math-input__token--operator>+</>", "<math-input__token--number>2</>"]);
     // The run is still the addressed element; the spans inside carry no address of their own.
     expect(run.querySelectorAll("[data-path]")).toHaveLength(0);
     expect(run.textContent).toBe("1+2");
@@ -157,21 +160,22 @@ describe("a run split either side of an operation", () => {
 
   it("sets a relation apart from an operator, so each can be spaced its own amount", () => {
     const { field } = mount("x=1");
-    expect(nodesOf(at(field, "0"))).toEqual(["x", "<math-input__token--relation>=</>", "1"]);
+    expect(nodesOf(at(field, "0"))).toEqual(["<math-input__token--variable>x</>", "<math-input__token--relation>=</>", "<math-input__token--number>1</>"]);
   });
 
   it("leaves a sign that is not an operation alone", () => {
     // `-b` is a negative, not a subtraction: nothing precedes it, so it takes no space.
-    expect(nodesOf(at(mount("-b").field, "0"))).toEqual(["-b"]);
+    // Drawn as a minus, U+2212, though the model holds the hyphen that was typed.
+    expect(nodesOf(at(mount("-b").field, "0"))).toEqual(["−", "<math-input__token--variable>b</>"]);
     // Nor does the second of two signs: the minus of `2⋅-3` belongs to the 3.
-    expect(nodesOf(at(mount("2*-3").field, "0"))).toEqual(["2", "<math-input__token--operator>⋅</>", "-3"]);
+    expect(nodesOf(at(mount("2*-3").field, "0"))).toEqual(["<math-input__token--number>2</>", "<math-input__token--operator>⋅</>", "−", "<math-input__token--number>3</>"]);
   });
 
   it("does treat a sign after a formula as an operation", () => {
     // By the alternation invariant, a run after the first has a construct in front of it —
     // which is a term, so this minus really is a subtraction.
     const { field } = mount("\\frac{1}{2}-3");
-    expect(nodesOf(at(field, "2"))).toEqual(["<math-input__token--operator>-</>", "3"]);
+    expect(nodesOf(at(field, "2"))).toEqual(["<math-input__token--operator>−</>", "<math-input__token--number>3</>"]);
   });
 
   it("carries the caret to and from every offset in a split run", () => {
@@ -212,7 +216,7 @@ describe("a run split either side of an operation", () => {
     repairField(field, content);
     // Not merely the right text — the right structure, because React is about to diff
     // against its own last description of this run rather than against the document.
-    expect(nodesOf(run)).toEqual(["1", "<math-input__token--operator>+</>", "2"]);
+    expect(nodesOf(run)).toEqual(["<math-input__token--number>1</>", "<math-input__token--operator>+</>", "<math-input__token--number>2</>"]);
     expect(selectionFromDom(field)).toBeNull();
     applySelection(field, { anchor: there("0", 3), focus: there("0", 3) });
     expect(selectionFromDom(field)).toEqual({ anchor: there("0", 3), focus: there("0", 3) });
@@ -340,5 +344,27 @@ describe("putting the text back", () => {
     repairField(field, content);
     // The same text node, not a replacement: a rewritten one would drop the selection.
     expect(run.firstChild).toBe(before);
+  });
+});
+
+describe("a minus that is drawn but not stored", () => {
+  it("draws U+2212 while the model keeps the hyphen that was typed", () => {
+    const { field, content } = mount("a-b");
+    const run = at(field, "0");
+    // Same length, so every offset still counts the same characters.
+    expect(run.textContent).toBe("a−b");
+    expect(run.textContent).toHaveLength(3);
+    expect(serializeToLatex(content)).toBe("a-b");
+    expect(positionFromDom(field, run.querySelector(".math-input__token--operator")!.firstChild!, 1)).toEqual(there("0", 2));
+  });
+
+  it("leaves a run alone on repair rather than rewriting it every time", () => {
+    const { field, content } = mount("a-b");
+    const run = at(field, "0");
+    const before = [...run.childNodes];
+    // The comparison is against the run as it is set; against the stored hyphen it would
+    // never match and every repair would rebuild every run in the row.
+    repairField(field, content);
+    expect([...run.childNodes]).toEqual(before);
   });
 });

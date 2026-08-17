@@ -22,9 +22,12 @@
   /* TeX sets a binary operator with 4/18 em either side and a relation with 5/18. */
   --math-input-operator-space: 0.222em;
   --math-input-relation-space: 0.278em;
-  /* The radical over a single line of writing. It grows from here with what it covers —
-     `rootGrowth` in render.tsx reads the height off the tree and scales both of these. */
-  --math-input-root-stroke: 0.11em;
+  /* One thickness for every rule the component draws: the bar of a fraction, the bar over a
+     radicand, and the radical's own stroke — so they are one line wherever they meet, at any
+     size and in any font. A radical scales it with what it covers; see `rootGrowth`. Floored
+     at a pixel, because a hairline that rounds to nothing is a rule that disappears. */
+  --math-input-rule: 0.062em;
+  /* How far a radical reaches before its bar begins, over a single line of writing. */
   --math-input-root-width: 1.05em;
   box-sizing: border-box;
   width: 100%;
@@ -210,6 +213,19 @@
   margin: 0 var(--math-input-relation-space);
 }
 
+/*
+ * A letter standing for a quantity is set in italic and a digit upright — the oldest
+ * convention in mathematical setting, and the one that says at a glance which `2` in `x2` is
+ * the number. Figures are tabular so that a column of working lines up.
+ */
+.math-input__token--variable {
+  font-style: italic;
+}
+
+.math-input__token--number {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Over the field, inside its bottom padding: visible, draggable, and worth no height. */
 .math-input__scrollbar {
   position: absolute;
@@ -281,7 +297,11 @@
   /* What is actually drawn: the host's value for one line, grown by how many lines this
      particular root covers. Private, because how the weight is arrived at is not a contract
      — the two properties above are. */
-  --_root-stroke: calc(var(--math-input-root-stroke) * var(--_root-stroke-grow, 1));
+  /* Hook and vinculum are one weight exactly — they are the same value, which is what makes
+     them one line where they meet. A radical carries more of it than a fraction bar does:
+     this one is drawn at a single thickness throughout, where a typeset radical is a glyph
+     that thickens along its diagonal and only its bar is a hairline rule. */
+  --_root-stroke: calc(max(var(--math-input-rule), 1px) * 1.4 * var(--_root-stroke-grow, 1));
   --_root-width: calc(var(--math-input-root-width) * var(--_root-width-grow, 1));
   display: inline-flex;
   flex-shrink: 0;
@@ -316,7 +336,10 @@
   display: block;
   /* Both sizes are given: an SVG is a replaced element, and `bottom` alone would leave it
      at the height its own viewBox implies rather than the height of what it covers. */
-  width: var(--_root-width);
+  /* Half a pixel wider than the space it is drawn in, so the hook and the bar it runs into
+     overlap rather than meet. On a fractional device pixel ratio two edges that merely meet
+     round to either side of the same pixel and leave a hairline of background between them. */
+  width: calc(var(--_root-width) + 0.5px);
   height: calc(100% - var(--_root-stroke) / 2);
   overflow: visible;
   stroke-width: var(--_root-stroke);
@@ -412,7 +435,9 @@
   z-index: 3;
   align-self: flex-start;
   min-width: 0.45em;
-  min-height: 0;
+  /* An index nobody has written yet is still somewhere to tap: without this the empty slot
+     is only as tall as its own line box, which at this size is a few pixels. */
+  min-height: 1.4em;
   padding: 0;
   transform: translateY(var(--_root-index-drop, 0.6em));
   font-size: 0.55em;
@@ -445,7 +470,7 @@
 
 .math-input__slot--numerator {
   padding-bottom: 0.08em;
-  border-bottom: 1.5px solid currentColor;
+  border-bottom: max(var(--math-input-rule), 1px) solid currentColor;
 }
 
 .math-input__slot--denominator {
@@ -459,12 +484,13 @@
   padding: 0;
 }
 
+/* The size comes from the renderer, which is the only thing that knows how many scripts
+   deep this one is. See `SCRIPT_LADDER` in render.tsx. */
 .math-input__slot--exponent,
 .math-input__slot--subscript {
   min-width: 0.5em;
   min-height: 0;
   padding: 0 0.04em;
-  font-size: 0.72em;
 }
 
 .math-input__slot--exponent {

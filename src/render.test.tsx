@@ -86,6 +86,35 @@ describe("renderNodes", () => {
   });
 });
 
+describe("the size of a script", () => {
+  const scriptSizes = (latex: string) => [...draw(parseLatex(latex)).querySelectorAll<HTMLElement>(".math-input__slot--exponent, .math-input__slot--subscript")]
+    .map((slot) => slot.getAttribute("style")?.match(/max\(([\d.]+)em/)?.[1]);
+
+  it("sets a script smaller than what it rides on", () => {
+    expect(scriptSizes("x^{2}")).toEqual(["0.720"]);
+    expect(scriptSizes("x_{i}")).toEqual(["0.720"]);
+  });
+
+  it("descends two rungs and then holds, so a script of a script of a script stays legible", () => {
+    // Relative steps, because `em` compounds them: 1 → 0.72 → 0.55, and 0.55 thereafter.
+    expect(scriptSizes("x^{y^{z}}")).toEqual(["0.720", "0.764"]);
+    expect(scriptSizes("x^{y^{z^{w}}}")).toEqual(["0.720", "0.764", "1.000"]);
+    expect(scriptSizes("x^{y^{z^{w^{v}}}}")).toEqual(["0.720", "0.764", "1.000", "1.000"]);
+  });
+
+  it("counts rungs rather than nesting, so a fraction inside a script does not shrink again", () => {
+    // Only a script slot is a rung. The numerator of a fraction sitting in an exponent is set
+    // at the exponent's size, not one smaller.
+    expect(scriptSizes("x^{\\frac{a^{b}}{c}}")).toEqual(["0.720", "0.764"]);
+  });
+
+  it("never sets a script below a size anyone can read", () => {
+    const floors = [...draw(parseLatex("x^{y^{z}}")).querySelectorAll<HTMLElement>(".math-input__slot--exponent")]
+      .map((slot) => slot.getAttribute("style"));
+    for (const style of floors) expect(style).toContain("11px");
+  });
+});
+
 /**
  * This was written against three radicals chosen between by two thresholds. There are no
  * sizes to choose between now: the weight is a function of what the root covers, which says

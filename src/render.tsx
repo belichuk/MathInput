@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode } from "react";
 import { type BranchKey, type CompoundNode, type FormulaNode, type Path, branchOf, branchesOf, encodePath, isBlank, slotPath, stepOf } from "./model";
-import { type AnyDraw, type FenceShape, slotCodeOf, specFor } from "./registry";
+import { type AnyDraw, type FenceShape, slotOf, specFor } from "./registry";
 
 /**
  * Renders a formula tree as real JSX. Every element carries a `data-path` holding the
@@ -32,37 +32,95 @@ export const CARET_PLACEHOLDER = "​";
  */
 const OPERATORS = "+-−⋅×÷:";
 const RELATIONS = "=≠<>≤≥";
+const DIGITS = "0123456789.,";
 
-export type RunToken = { text: string; kind: "plain" | "operator" | "relation" };
+/**
+ * The four things a character can be, beyond ordinary text: a quantity, a name standing for
+ * one, an operation between two of them, or a claim about them. Mathematics sets each
+ * differently — digits upright and figure-width, letters italic, operations and relations
+ * with air around them — and none of it is something a font does on its own.
+ */
+export type RunToken = { text: string; kind: "plain" | "operator" | "relation" | "variable" | "number" };
+
+const classOf = (character: string, operates: boolean): RunToken["kind"] => {
+  if (RELATIONS.includes(character)) return "relation";
+  if (OPERATORS.includes(character)) return operates ? "operator" : "plain";
+  if (DIGITS.includes(character)) return "number";
+  return /[A-Za-z]/.test(character) ? "variable" : "plain";
+};
 
 export function tokeniseRun(value: string, afterTerm: boolean): RunToken[] {
   const tokens: RunToken[] = [];
-  let plain = "";
   // A stand-in for the term a preceding construct is, so the first character can be judged
   // by the same rule as every other one.
   let previous: string | null = afterTerm ? "0" : null;
-  const flush = () => { if (plain !== "") { tokens.push({ text: plain, kind: "plain" }); plain = ""; } };
 
   for (const character of value) {
-    const relation = RELATIONS.includes(character);
     const operates = previous !== null && !OPERATORS.includes(previous) && !RELATIONS.includes(previous);
     previous = character;
-    if (relation || (operates && OPERATORS.includes(character))) {
-      flush();
-      tokens.push({ text: character, kind: relation ? "relation" : "operator" });
-      continue;
-    }
-    plain += character;
+    const kind = classOf(character, operates);
+    const last = tokens[tokens.length - 1];
+    // A sign is its own token every time, because the space belongs to that one character.
+    // Everything else runs together for as long as its class holds: `12.5` is one number.
+    if (last && last.kind === kind && kind !== "operator" && kind !== "relation") last.text += character;
+    else tokens.push({ text: character, kind });
   }
-  flush();
   return tokens;
 }
 
-function Slot({ node, branch, path }: { node: CompoundNode; branch: BranchKey; path: Path }) {
+/**
+ * A run whose text is all one class needs no span inside it: the run element carries the
+ * class itself and keeps its single text node.
+ *
+ * Which matters more than it sounds. Once letters and digits are classed too, almost every
+ * run is *some* class, and a span per run would mean the bridge walking children for every
+ * position in the document rather than for the few runs that hold an operation. This keeps
+ * `x` and `12.5` exactly as cheap to address as they were before any of this.
+ */
+export const wholeRun = (tokens: RunToken[]): RunToken | null => (tokens.length === 1 ? tokens[0] : null);
+
+/**
+ * A run as it is *set*, which is not quite as it is stored.
+ *
+ * A keyboard has a hyphen and mathematics has a minus, and they are different characters:
+ * U+2212 is drawn to the width of a plus and sits at the same height, where a hyphen is short
+ * and low and reads as a word-break. Only the drawing changes — the model keeps the hyphen the
+ * user typed and `serialize.ts` writes it, so the LaTeX is unchanged and every offset still
+ * counts the same characters, U+2212 being one character exactly as `-` is.
+ */
+export const asSet = (text: string): string => text.replace(/-/g, "−");
+const tokenClass = (token: RunToken | null): string => (token && token.kind !== "plain" ? ` math-input__token--${token.kind}` : "");
+
+/**
+ * The ladder a script is set on: full size, then 0.72, then 0.55, and then no smaller.
+ *
+ * TeX descends two rungs and holds, and holding is the whole point. Scripts nest — `x^{y^{z}}`
+ * is ordinary enough — and a plain `0.72em` on each one compounds, so four levels down a
+ * 24px field was setting text at 6px. It also stops at 11px however small the field itself is,
+ * because a size nobody can read is not a size.
+ *
+ * Each step is expressed relative to the step above it, which is what lets `em` do the
+ * compounding and the ladder decide when to stop compounding.
+ */
+const SCRIPT_LADDER = [1, 0.72, 0.55];
+const scriptStep = (depth: number): number => {
+  const rung = (at: number) => SCRIPT_LADDER[Math.min(at, SCRIPT_LADDER.length - 1)];
+  return rung(depth + 1) / rung(depth);
+};
+
+function Slot({ node, branch, path, depth }: { node: CompoundNode; branch: BranchKey; path: Path; depth: number }) {
   const nodes = branchesOf(node).find((candidate) => candidate.key === branch)?.nodes ?? [];
   const here = slotPath(path, branch);
+  const slot = slotOf(node.type, branch);
+  const scripted = slot?.script === true;
   // `data-blank` drives the dotted placeholder: a slot is never CSS-`:empty`, it always holds a text run.
-  return <span className={`math-input__slot math-input__slot--${slotCodeOf(node.type, branch)}`} data-slot={branch} data-path={encodePath(here)} data-blank={isBlank(nodes) ? "" : undefined}>{renderNodes(nodes, here)}</span>;
+  return <span
+    className={`math-input__slot math-input__slot--${slot?.code ?? ""}`}
+    style={scripted ? { fontSize: `max(${scriptStep(depth).toFixed(3)}em, 11px)` } : undefined}
+    data-slot={branch}
+    data-path={encodePath(here)}
+    data-blank={isBlank(nodes) ? "" : undefined}
+  >{renderNodes(nodes, here, scripted ? depth + 1 : depth)}</span>;
 }
 
 /**
@@ -72,6 +130,10 @@ function Slot({ node, branch, path }: { node: CompoundNode; branch: BranchKey; p
  */
 const FENCES: Record<FenceShape, { left: string; right: string }> = {
   paren: { left: "M8 1 C3.5 26 3.5 74 8 99", right: "M2 1 C6.5 26 6.5 74 2 99" },
+  bracket: { left: "M8 1 H3 V99 H8", right: "M2 1 H7 V99 H2" },
+  // A brace turns twice and pinches at the middle, which is the whole of its character.
+  brace: { left: "M8 1 C5 1 5 12 5 30 C5 44 3 48 1 50 C3 52 5 56 5 70 C5 88 5 99 8 99", right: "M2 1 C5 1 5 12 5 30 C5 44 7 48 9 50 C7 52 5 56 5 70 C5 88 5 99 2 99" },
+  bar: { left: "M5 1 V99", right: "M5 1 V99" },
 };
 
 const Fence = ({ shape, side }: { shape: FenceShape; side: "left" | "right" }) =>
@@ -138,7 +200,7 @@ const RootSymbol = () =>
     <path d="M0 53 L5 59 L10.5 100 L24 0" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
   </svg>;
 
-function renderNode(node: FormulaNode, path: Path): ReactNode {
+function renderNode(node: FormulaNode, path: Path, depth: number): ReactNode {
   const key = encodePath(path);
   if (node.type === "text") {
     /**
@@ -149,20 +211,20 @@ function renderNode(node: FormulaNode, path: Path): ReactNode {
      * carry no address of their own, and `selection.ts` walks across them.
      */
     const tokens = node.value === "" ? [] : tokeniseRun(node.value, stepOf(path).index > 0);
-    const plain = tokens.length === 1 && tokens[0].kind === "plain";
-    return <span key={key} className="math-input__text" data-path={key} data-blank={node.value === "" ? "" : undefined}>
-      {node.value === "" || plain
-        ? (node.value === "" ? CARET_PLACEHOLDER : node.value)
+    const whole = wholeRun(tokens);
+    return <span key={key} className={`math-input__text${tokenClass(whole)}`} data-path={key} data-blank={node.value === "" ? "" : undefined}>
+      {node.value === "" ? CARET_PLACEHOLDER : whole
+        ? asSet(whole.text)
         : tokens.map((token, at) => (token.kind === "plain"
-          ? token.text
-          : <span key={at} className={`math-input__token math-input__token--${token.kind}`}>{token.text}</span>))}
+          ? asSet(token.text)
+          : <span key={at} className={`math-input__token${tokenClass(token)}`}>{asSet(token.text)}</span>))}
     </span>;
   }
 
   // Past the run, the node is a construct — drawn as the shape its registry row names rather
   // than as markup of its own. A construct the renderer has never heard of is not a thing that
   // can happen: it has a row, and a row names a shape.
-  const slot = (branch: BranchKey) => <Slot key={branch} node={node} branch={branch} path={path} />;
+  const slot = (branch: BranchKey) => <Slot key={branch} node={node} branch={branch} path={path} depth={depth} />;
   const { className, children, style } = draw(node, specFor(node).draw, slot);
   return <span key={key} className={className} style={style} data-math={node.type} data-path={key}>{children}</span>;
 }
@@ -204,4 +266,5 @@ function draw(node: CompoundNode, shape: AnyDraw, slot: (branch: BranchKey) => R
   }
 }
 
-export const renderNodes = (nodes: FormulaNode[], path: Path = []): ReactNode => nodes.map((node, index) => renderNode(node, [...path, { index }]));
+/** `depth` is how many rungs down the script ladder this sequence is set. */
+export const renderNodes = (nodes: FormulaNode[], path: Path = [], depth = 0): ReactNode => nodes.map((node, index) => renderNode(node, [...path, { index }], depth));

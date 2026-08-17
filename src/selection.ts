@@ -1,5 +1,5 @@
 import { type CaretPosition, type FormulaNode, type Path, type SelectionRange, decodePath, encodePath, stepOf, textAt } from "./model";
-import { CARET_PLACEHOLDER, tokeniseRun } from "./render";
+import { CARET_PLACEHOLDER, asSet, tokeniseRun, wholeRun } from "./render";
 
 /**
  * The only place that touches Range and Selection.
@@ -228,7 +228,9 @@ export function repairField(field: HTMLElement, content: FormulaNode[]): void {
     const path = decodePath(span.dataset.path!);
     const node = textAt(content, path);
     const value = node === null ? "" : node.value;
-    const expected = value === "" ? CARET_PLACEHOLDER : value;
+    // Compared against the run as it is *set*, not as it is stored: a minus is drawn as
+    // U+2212 and a comparison against the stored hyphen would rewrite every run every time.
+    const expected = value === "" ? CARET_PLACEHOLDER : asSet(value);
     if (span.textContent === expected) continue;
     rewriteRun(span, value, stepOf(path).index > 0);
   }
@@ -247,15 +249,18 @@ export function repairField(field: HTMLElement, content: FormulaNode[]): void {
  */
 function rewriteRun(span: HTMLElement, value: string, afterTerm: boolean): void {
   const tokens = value === "" ? [] : tokeniseRun(value, afterTerm);
-  if (tokens.length <= 1 && tokens.every((token) => token.kind === "plain")) {
-    span.textContent = value === "" ? CARET_PLACEHOLDER : value;
+  // A run that is all one class keeps its single text node and wears the class itself, which
+  // is what the renderer does — the class is already on the element and is not this function's
+  // to set; only the children are.
+  if (wholeRun(tokens) !== null || tokens.length === 0) {
+    span.textContent = value === "" ? CARET_PLACEHOLDER : asSet(value);
     return;
   }
   span.replaceChildren(...tokens.map((token) => {
-    if (token.kind === "plain") return token.text;
+    if (token.kind === "plain") return asSet(token.text);
     const marked = span.ownerDocument.createElement("span");
     marked.className = `math-input__token math-input__token--${token.kind}`;
-    marked.textContent = token.text;
+    marked.textContent = asSet(token.text);
     return marked;
   }));
 }

@@ -8,9 +8,11 @@ Work in hand for the next release. The release workflow takes a version's notes 
 file and refuses to publish a version that has none, so this section exists from the first
 commit of a release rather than being written at the end of it.
 
-Nothing below changes what the editor does. Every one of the 154 tests that existed before it
-still passes, unmodified, and that is the point: this is the field getting smaller and very
-much faster while writing a formula stays exactly as it was.
+Two halves. Everything about how the field *works* — how it is built, what a keystroke costs,
+how much of it there is — changed without changing what it does at all. Everything about how
+a formula *looks* changed a great deal, and deliberately: operations are spaced, letters are
+italic, digits upright, a minus is a minus, and roots are weighed by what they cover. Writing
+a formula is what it always was; reading one should now look like mathematics.
 
 ### Changed
 
@@ -21,12 +23,19 @@ much faster while writing a formula stays exactly as it was.
 
 - **Operations are set with space around them.** `2+3` was one run of ink; it is `2 + 3` now, with the amounts mathematics has always used — a medium space either side of a binary operator, a thick one either side of a relation. A font cannot do this and neither can a stylesheet on its own, because whether a given `+` is an operation at all depends on what stands in front of it: the minus of `-b` is a negative and takes no space, while the minus of `b^{2}-4ac` is a subtraction and does. A run is split either side of the signs that are operations and left as one piece when there are none, so the overwhelming majority of runs are drawn exactly as before. `--math-input-operator-space` and `--math-input-relation-space` set the two amounts. Nothing about the document changed: the model, the LaTeX and every offset in it are what they were.
 - **A root's index sits where it belongs** — a small superscript at the top left of the radical, kerned in against the rising stroke, rather than adrift below and to the left of it. How far in it kerns follows the root's width, because this radical is one drawing stretched to the height of its radicand: its stroke leans further right the taller it stands, so an index tucked in by a constant would touch the sign on a short root and float away from it on a tall one.
+- **Letters are set italic and digits upright**, which is the oldest convention in mathematical setting and the one that says at a glance which `2` in `x2` is the number. Figures are tabular, so a column of working lines up. A run that is all one class carries it on the run itself and keeps its single text node, so `x` and `12.5` cost no more to address than they did before any of this.
+- **A minus is drawn as one.** A keyboard has a hyphen and mathematics has a minus, and they are different characters: U+2212 is drawn to the width of a plus and sits at the same height, where a hyphen is short, low, and reads as a word-break. Only the drawing changes — the model keeps the hyphen that was typed, the LaTeX is unchanged, and every offset still counts the same characters. A minus pasted in from elsewhere becomes the hyphen, so a document only ever holds one of the two.
+- **A script two levels down stops shrinking.** `0.72em` on each script compounded, so `x^{y^{z^{w}}}` in a 24px field was setting text at 6px. Scripts follow the ladder TeX uses — full size, 0.72, 0.55 — and then hold, and never go below 11px however small the field is.
 - Radicals stand a little lower over what they cover, which is closer to how the same expression is set anywhere else.
+- **One thickness for every rule the component draws.** A fraction's bar was 1.5px and did not change when the field's font size did; it is the same value the bar over a radicand and the radical's own stroke are drawn from, floored at a pixel so a hairline never rounds away to nothing. Hook and vinculum are that value exactly, which is what makes them one line where they meet; a radical carries rather more of it than a fraction bar does, because this one is drawn at a single thickness throughout where a typeset radical is a glyph that thickens along its diagonal.
+- The radical overlaps the bar it runs into by half a pixel. Two edges that merely meet round to either side of the same device pixel on a fractional display, and leave a hairline of background showing between them.
+- An index nobody has written yet is still somewhere to tap.
 - **A radical's weight is a function of what it covers, rather than one of three sizes chosen between.** It came in three, picked by two thresholds, and a threshold shows: two roots a hair apart in height were drawn in visibly different weights, while every root between one and a half lines and two and a third was drawn as though it were exactly two. Both the stroke and how far the radical reaches before its bar begins now grow smoothly with the height of the radicand — read off the tree, never measured off the page — and both stop growing, because a root over a page of working is a tall radical and not a thick one. The index's drop down the stroke comes from the same height, which is what holds the gap between index and radical at one constant distance from a square root over a digit to a cube root over a stack of fractions. It was three hand-set offsets before, one of them a guess at a size nothing exercised.
 
 ### Removed
 
-- **Six radical custom properties are two.** `--math-input-root-stroke-s`, `-m` and `-l`, and `--math-input-root-width-s`, `-m` and `-l`, named three sizes that no longer exist. `--math-input-root-stroke` and `--math-input-root-width` replace them and set the radical over a *single line* of writing; every taller root is scaled from there. A host that set three weights by hand now sets one and gets the whole range in proportion.
+- **Six radical custom properties are two, and one of those is now about every rule.** `--math-input-rule` sets the thickness of a fraction's bar, the bar over a radicand and the radical itself; `--math-input-root-width` sets how far a radical reaches before its bar begins, over a single line of writing.
+- **The old six.** `--math-input-root-stroke-s`, `-m` and `-l`, and `--math-input-root-width-s`, `-m` and `-l`, named three sizes that no longer exist. `--math-input-root-stroke` and `--math-input-root-width` replace them and set the radical over a *single line* of writing; every taller root is scaled from there. A host that set three weights by hand now sets one and gets the whole range in proportion.
 
 ### Added
 
