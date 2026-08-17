@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type CaretPosition, type FormulaNode, collapsedAt } from "./model";
-import { clampPosition, endOfArray, enterNode, nextPosition, previousPosition, rowEnd, rowStart, skipForward } from "./caret";
+import { clampPosition, endOfArray, enterNode, nextPosition, previousPosition, rowEnd, rowStart, skipForward, stepVertically } from "./caret";
 import { parseLatex } from "./parse";
 import { at, inside, rowOf, sketch, top } from "./testing";
 
@@ -189,5 +189,58 @@ describe("clampPosition", () => {
 
   it("refuses to sit on a formula rather than in it", () => {
     expect(clampPosition(rowOf("\\sqrt{2}").content, top(1, 0))).toEqual(rowStart());
+  });
+});
+
+describe("stepVertically", () => {
+  const move = (latex: string, start: CaretPosition, direction: "up" | "down") => {
+    const content = parseLatex(latex);
+    const next = stepVertically(content, start, direction);
+    return next ? sketch({ content, selection: collapsedAt(next) }) : null;
+  };
+
+  it("moves between the slots a construct stacks", () => {
+    expect(move("\\frac{12}{34}", inside(1, "numerator", 0, 2), "down")).toBe("\\frac{12}{34|}");
+    expect(move("\\frac{12}{34}", inside(1, "denominator", 0, 2), "up")).toBe("\\frac{12|}{34}");
+    // An exponent is above its base, a subscript below its.
+    expect(move("x^{2}", inside(1, "exponent", 0, 1), "down")).toBe("x|^{2}");
+    expect(move("x^{2}", inside(1, "base", 0, 1), "up")).toBe("x^{2|}");
+    expect(move("x_{i}", inside(1, "base", 0, 1), "down")).toBe("x_{i|}");
+  });
+
+  it("lands as far along the slot as the caret already was, and no further", () => {
+    // Offset 2 of the numerator is offset 2 of the denominator...
+    expect(move("\\frac{123}{456}", inside(1, "numerator", 0, 2), "down")).toBe("\\frac{123}{45|6}");
+    // ...unless the slot is shorter than that, in which case its end.
+    expect(move("\\frac{123}{4}", inside(1, "numerator", 0, 3), "down")).toBe("\\frac{123}{4|}");
+    // Nothing is measured to decide this: it is arithmetic on offsets.
+    expect(move("\\frac{123}{}", inside(1, "numerator", 0, 3), "down")).toBe("\\frac{123}{|}");
+  });
+
+  it("asks the nearest construct that stacks anything, then looks outwards", () => {
+    const content = parseLatex("x^{\\frac{a}{b}}");
+    const draw = (position: CaretPosition | null) => (position ? sketch({ content, selection: collapsedAt(position) }) : null);
+    const inNumerator = at([{ index: 1, branch: "exponent" }, { index: 1, branch: "numerator" }, { index: 0 }], 1);
+    const inDenominator = at([{ index: 1, branch: "exponent" }, { index: 1, branch: "denominator" }, { index: 0 }], 1);
+
+    // Down from the numerator finds the fraction's own denominator rather than leaping past
+    // it to the power's base: the nearest construct that stacks anything answers first.
+    expect(draw(stepVertically(content, inNumerator, "down"))).toBe("x^{\\frac{a}{b|}}");
+    // Down from the denominator has nowhere left inside the fraction, so the power answers
+    // and the caret leaves the exponent for the base underneath it.
+    expect(draw(stepVertically(content, inDenominator, "down"))).toBe("x|^{\\frac{a}{b}}");
+    // Upwards there is nothing above either of them: an exponent is already the top of a power.
+    expect(stepVertically(content, inNumerator, "up")).toBeNull();
+    expect(draw(stepVertically(content, inDenominator, "up"))).toBe("x^{\\frac{a|}{b}}");
+  });
+
+  it("has no answer when nothing around the caret stacks anything", () => {
+    // A run at the top of the row, and a bracket, which stacks nothing.
+    expect(move("1+2", top(0, 1), "up")).toBeNull();
+    expect(move("1+2", top(0, 1), "down")).toBeNull();
+    expect(move("\\left(9\\right)", inside(1, "content", 0, 1), "up")).toBeNull();
+    // Above an exponent and below a subscript there is nothing either.
+    expect(move("x^{2}", inside(1, "exponent", 0, 1), "up")).toBeNull();
+    expect(move("x_{i}", inside(1, "subscript", 0, 1), "down")).toBeNull();
   });
 });

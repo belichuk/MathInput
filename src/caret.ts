@@ -2,6 +2,7 @@ import {
   type CaretPosition, type FormulaNode, type Path,
   arrayPathOf, branchKeys, enclosingNodePath, isCompound, isText, nextBoundary, previousBoundary, resolve, resolveArray, resolveNode, slotPath, stepOf,
 } from "./model";
+import { specFor } from "./registry";
 
 /**
  * Caret movement over the tree.
@@ -113,6 +114,43 @@ export function skipForward(root: FormulaNode[], position: CaretPosition): Caret
   if (isText(node) && position.offset < node.value.length) return { path: position.path, offset: node.value.length };
   if (isCompound(target.array[target.index + 1])) return positionAfterNode([...arrayPathOf(position.path), { index: target.index + 1 }]);
   return exitForward(root, position.path, "end");
+}
+
+/**
+ * The slot directly above or below this one, or null when nothing encloses the caret that has
+ * one — at which point the row above or below is the answer, and that is the shell's business.
+ *
+ * Which slots are above which is declared, not inferred: a fraction's numerator is above its
+ * denominator, an exponent is above its base, a subscript below its. Asked of the nearest
+ * enclosing construct first and then outwards, so ↓ from the numerator of a fraction inside an
+ * exponent moves to that fraction's denominator rather than leaping out to the base.
+ *
+ * The caret lands as far along the target slot as it already was — arithmetic on offsets, with
+ * nothing measured. A sticky column carried from the pixel position of the caret is the
+ * obvious alternative and it is the one thing this editor will not do: no editing decision is
+ * made by measuring the page.
+ */
+export function stepVertically(root: FormulaNode[], position: CaretPosition, direction: "up" | "down"): CaretPosition | null {
+  let path = position.path;
+  while (path.length >= 2) {
+    const branch = path[path.length - 2].branch;
+    const nodePath = enclosingNodePath(path);
+    const node = nodePath ? resolveNode(root, nodePath) : null;
+    if (branch && nodePath && isCompound(node)) {
+      const pairs = specFor(node).vertical ?? [];
+      const target = direction === "up"
+        ? pairs.find((pair) => pair[1] === branch)?.[0]
+        : pairs.find((pair) => pair[0] === branch)?.[1];
+      if (target) {
+        const slot = slotPath(nodePath, target);
+        const run = (resolveArray(root, slot) ?? [])[0];
+        return { path: [...slot, { index: 0 }], offset: Math.min(position.offset, isText(run) ? run.value.length : 0) };
+      }
+    }
+    if (!nodePath) return null;
+    path = nodePath;
+  }
+  return null;
 }
 
 /** Clamps a position onto a real text run — used when a native gesture leaves the caret somewhere odd. */

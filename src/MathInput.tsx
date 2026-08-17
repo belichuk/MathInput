@@ -1,7 +1,7 @@
 import { type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./MathInput.css";
 import { type FormulaNode, type SelectionRange, collapsedAt, isBlank, samePosition } from "./model";
-import { rowEnd, rowStart } from "./caret";
+import { clampPosition, rowEnd, rowStart, stepVertically } from "./caret";
 import { type Action, type CompoundKind, type RowState, reduce } from "./reducers";
 import { parseLatex } from "./parse";
 import { serializeToLatex } from "./serialize";
@@ -536,6 +536,30 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
       if (key.key === "ArrowLeft" || key.key === "ArrowRight") {
         take(true);
         dispatch(rowId, { type: "move", direction: key.key === "ArrowLeft" ? "backward" : "forward" });
+        return;
+      }
+      /**
+       * ↑ and ↓ move between the slots a construct stacks — a fraction's numerator and its
+       * denominator, an exponent and its base — and between rows when nothing around the
+       * caret stacks anything. Both are answered from the tree: which slot is above which is
+       * declared in the registry, and where in it the caret lands is arithmetic on offsets.
+       */
+      if (key.key === "ArrowUp" || key.key === "ArrowDown") {
+        take(true);
+        const direction = key.key === "ArrowUp" ? "up" : "down";
+        const current = live.current;
+        const row = current.rows.find((candidate) => candidate.id === rowId);
+        const caret = current.caret?.rowId === rowId ? current.caret.range.focus : null;
+        const within = row && caret ? stepVertically(row.content, caret, direction) : null;
+        if (within) { dispatch(rowId, { type: "select", selection: collapsedAt(within) }); return; }
+
+        const at = current.rows.findIndex((candidate) => candidate.id === rowId);
+        const next = current.rows[at + (direction === "up" ? -1 : 1)];
+        if (!next) return;
+        pendingFocus.current = next.id;
+        // The same distance along the next row as the caret had come along this one, which is
+        // the nearest thing to a column that a document with no geometry has.
+        commit({ rows: current.rows, caret: { rowId: next.id, range: collapsedAt(clampPosition(next.content, { path: [{ index: 0 }], offset: caret?.offset ?? 0 })) } });
         return;
       }
       if (key.key === "Home" || key.key === "End") {
