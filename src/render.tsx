@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
-import { type BranchKey, type CompoundNode, type FormulaNode, type Path, branchesOf, encodePath, isBlank, slotPath, stepOf } from "./model";
-import { slotCodeOf, specFor } from "./registry";
+import { type BranchKey, type CompoundNode, type FormulaNode, type Path, branchOf, branchesOf, encodePath, isBlank, slotPath, stepOf } from "./model";
+import { type AnyDraw, type FenceShape, slotCodeOf, specFor } from "./registry";
 
 /**
  * Renders a formula tree as real JSX. Every element carries a `data-path` holding the
@@ -70,10 +70,14 @@ function Slot({ node, branch, path }: { node: CompoundNode; branch: BranchKey; p
  * matters: an SVG is a replaced element, so as a direct flex item its 1:10 aspect ratio
  * would size the whole group instead of the other way round.
  */
-const Paren = ({ side }: { side: "left" | "right" }) =>
+const FENCES: Record<FenceShape, { left: string; right: string }> = {
+  paren: { left: "M8 1 C3.5 26 3.5 74 8 99", right: "M2 1 C6.5 26 6.5 74 2 99" },
+};
+
+const Fence = ({ shape, side }: { shape: FenceShape; side: "left" | "right" }) =>
   <span className={`math-input__paren math-input__paren--${side}`} aria-hidden="true">
     <svg viewBox="0 0 10 100" preserveAspectRatio="none" fill="none">
-      <path d={side === "left" ? "M8 1 C3.5 26 3.5 74 8 99" : "M2 1 C6.5 26 6.5 74 2 99"} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      <path d={FENCES[shape][side]} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </svg>
   </span>;
 
@@ -136,25 +140,42 @@ function renderNode(node: FormulaNode, path: Path): ReactNode {
     </span>;
   }
 
-  // Past the run, the node is a construct — which is what lets a slot be addressed by the
-  // registry's name for it rather than by a per-kind table.
+  // Past the run, the node is a construct — drawn as the shape its registry row names rather
+  // than as markup of its own. A construct the renderer has never heard of is not a thing that
+  // can happen: it has a row, and a row names a shape.
   const slot = (branch: BranchKey) => <Slot key={branch} node={node} branch={branch} path={path} />;
-  switch (node.type) {
-    case "sqrt":
-      // A cube root is the same drawing with its index beside it, which is why the index
-      // is the root's own child rather than the body's: it sits outside the radical.
-      return <span key={key} className={`math-input__root math-input__root--${rootSize(node.content)}${node.index === null ? "" : " math-input__root--indexed"}`} data-math="sqrt" data-path={key}>
-        {node.index === null ? null : slot("index")}
-        <span className="math-input__root-body"><RootSymbol />{slot("content")}</span>
-      </span>;
-    case "frac":
-      return <span key={key} className="math-input__fraction" data-math="frac" data-path={key}>{slot("numerator")}{slot("denominator")}</span>;
-    case "power":
-      return <span key={key} className="math-input__power" data-math="power" data-path={key}>{slot("base")}{slot("exponent")}</span>;
-    case "subscript":
-      return <span key={key} className="math-input__subscript" data-math="subscript" data-path={key}>{slot("base")}{slot("subscript")}</span>;
-    case "group":
-      return <span key={key} className="math-input__group" data-math="group" data-path={key}><Paren side="left" />{slot("content")}<Paren side="right" /></span>;
+  const { className, children } = draw(node, specFor(node).draw, slot);
+  return <span key={key} className={className} data-math={node.type} data-path={key}>{children}</span>;
+}
+
+/**
+ * The layout shapes, which are fewer than the constructs: a power and a subscript are the same
+ * arrangement and differ only in what the stylesheet does with the slot underneath.
+ *
+ * Returning the class rather than the whole element keeps the address and `data-math` in one
+ * place above, so a shape cannot forget to carry them.
+ */
+function draw(node: CompoundNode, shape: AnyDraw, slot: (branch: BranchKey) => ReactNode): { className: string; children: ReactNode } {
+  switch (shape.primitive) {
+    case "stack":
+      return { className: shape.className, children: <>{slot(shape.above)}{slot(shape.below)}</> };
+    case "attach":
+      return { className: shape.className, children: <>{slot(shape.base)}{slot(shape.script)}</> };
+    case "fence":
+      return { className: shape.className, children: <><Fence shape={shape.shape} side="left" />{slot(shape.content)}<Fence shape={shape.shape} side="right" /></> };
+    case "radical": {
+      // A cube root is the same drawing with its index beside it, which is why the index is
+      // the root's own child rather than the body's: it sits outside the radical.
+      const radicand = branchOf(node, shape.radicand) ?? [];
+      const indexed = shape.index !== undefined && branchOf(node, shape.index) !== null;
+      return {
+        className: `${shape.className} ${shape.className}--${rootSize(radicand)}${indexed ? ` ${shape.className}--indexed` : ""}`,
+        children: <>
+          {indexed && shape.index !== undefined ? slot(shape.index) : null}
+          <span className="math-input__root-body"><RootSymbol />{slot(shape.radicand)}</span>
+        </>,
+      };
+    }
   }
 }
 

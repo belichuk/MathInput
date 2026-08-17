@@ -55,10 +55,52 @@ type SlotSpec<K extends ConstructKind> = {
   optional?: true;
 };
 
+/**
+ * The shapes a fence is drawn in. One so far, because the editor draws only round brackets;
+ * the union is here rather than a bare string so that adding `[`, `{` or `|` is a path the
+ * compiler asks for rather than a delimiter that silently fails to appear.
+ */
+export type FenceShape = "paren";
+
+/**
+ * How a construct is *drawn*, as a layout shape and the slots that fill it rather than as
+ * markup of its own.
+ *
+ * This is what makes a new row visible. Before it, the renderer switched on the kind and a
+ * construct it had never heard of drew nothing at all — no error, no warning, the slot and
+ * everything written in it simply absent from the page while serialising perfectly. Four
+ * shapes cover the five constructs, and the two that share one share it exactly: a power and
+ * a subscript are the same structure and differ only in what the stylesheet does with the
+ * slot underneath.
+ *
+ * `className` is a datum rather than derived from the kind, because the stylesheet's names for
+ * these were chosen before the registry was (`root` for a `sqrt`, `fraction` for a `frac`) and
+ * renaming them would be a breaking change for anyone styling the internals. That is M6's
+ * business, not this milestone's.
+ */
+export type Draw<K extends ConstructKind> =
+  /** Two slots, one above the other, divided by a rule: a fraction. */
+  | { primitive: "stack"; className: string; above: BranchOf<K>; below: BranchOf<K> }
+  /** A base with something riding beside it, raised or lowered by the slot's own styling. */
+  | { primitive: "attach"; className: string; base: BranchOf<K>; script: BranchOf<K> }
+  /** A drawn radical over what it covers, with an index in its crook when it has one. */
+  | { primitive: "radical"; className: string; radicand: BranchOf<K>; index?: BranchOf<K> }
+  /** Content between two stretchy delimiters. */
+  | { primitive: "fence"; className: string; content: BranchOf<K>; shape: FenceShape };
+
+/** The same, for a renderer holding a node whose kind is a runtime fact. */
+export type AnyDraw =
+  | { primitive: "stack"; className: string; above: BranchKey; below: BranchKey }
+  | { primitive: "attach"; className: string; base: BranchKey; script: BranchKey }
+  | { primitive: "radical"; className: string; radicand: BranchKey; index?: BranchKey }
+  | { primitive: "fence"; className: string; content: BranchKey; shape: FenceShape };
+
 export type ConstructSpec<K extends ConstructKind> = {
   kind: K;
   /** Visual, left-to-right order. This *is* the order caret navigation walks them in. */
   slots: readonly SlotSpec<K>[];
+  /** The layout shape it is drawn as, and which slot fills each part of it. */
+  draw: Draw<K>;
   /** Where a term written in front of the construct goes when the construct adopts one. */
   adopted: BranchOf<K>;
   /** Slot pairs from top to bottom, which is what ↑ and ↓ will move between (M4). */
@@ -84,6 +126,7 @@ export type ConstructSpec<K extends ConstructKind> = {
 export type AnySpec = {
   kind: ConstructKind;
   slots: readonly { key: BranchKey; code: string; optional?: true }[];
+  draw: AnyDraw;
   adopted: BranchKey;
   vertical?: readonly (readonly [BranchKey, BranchKey])[];
   lines: (node: CompoundNode, linesIn: (nodes: FormulaNode[]) => number) => number;
@@ -100,6 +143,7 @@ export const CONSTRUCTS = {
     // The index comes first because it is drawn first, and it is optional because
     // `index === null` is a square root rather than a root with an empty index.
     slots: [{ key: "index", code: "root-index", optional: true }, { key: "content", code: "radicand" }],
+    draw: { primitive: "radical", className: "math-input__root", radicand: "content", index: "index" },
     adopted: "content",
     lines: (node, linesIn) => linesIn(node.content) + 0.35,
     write: (node, latex) => (node.index === null ? `\\sqrt{${latex(node.content)}}` : `\\sqrt[${latex(node.index)}]{${latex(node.content)}}`),
@@ -107,6 +151,7 @@ export const CONSTRUCTS = {
   frac: construct({
     kind: "frac",
     slots: [{ key: "numerator", code: "numerator" }, { key: "denominator", code: "denominator" }],
+    draw: { primitive: "stack", className: "math-input__fraction", above: "numerator", below: "denominator" },
     adopted: "numerator",
     vertical: [["numerator", "denominator"]],
     lines: (node, linesIn) => linesIn(node.numerator) + linesIn(node.denominator),
@@ -115,6 +160,7 @@ export const CONSTRUCTS = {
   power: construct({
     kind: "power",
     slots: [{ key: "base", code: "base" }, { key: "exponent", code: "exponent" }],
+    draw: { primitive: "attach", className: "math-input__power", base: "base", script: "exponent" },
     adopted: "base",
     vertical: [["exponent", "base"]],
     // A script rides part of a line above its base rather than a whole one.
@@ -124,6 +170,7 @@ export const CONSTRUCTS = {
   subscript: construct({
     kind: "subscript",
     slots: [{ key: "base", code: "base" }, { key: "subscript", code: "subscript" }],
+    draw: { primitive: "attach", className: "math-input__subscript", base: "base", script: "subscript" },
     adopted: "base",
     vertical: [["base", "subscript"]],
     lines: (node, linesIn) => linesIn(node.base) + 0.4 * linesIn(node.subscript),
@@ -132,6 +179,7 @@ export const CONSTRUCTS = {
   group: construct({
     kind: "group",
     slots: [{ key: "content", code: "group" }],
+    draw: { primitive: "fence", className: "math-input__group", content: "content", shape: "paren" },
     adopted: "content",
     lines: (node, linesIn) => linesIn(node.content),
     write: (node, latex) => `\\left(${latex(node.content)}\\right)`,

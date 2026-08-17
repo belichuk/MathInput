@@ -116,6 +116,29 @@ describe("every construct in the registry", () => {
     }
   });
 
+  /**
+   * The property that was missing, and it is worth saying why it was missed.
+   *
+   * The one below checks that every address the renderer *emits* resolves — which a construct
+   * that renders nothing at all passes trivially, because it emits none, while the runs around
+   * it keep the count non-zero. A sixth construct added to the table serialised perfectly and
+   * drew nothing whatsoever, silently, and every property still passed. So this one asks the
+   * opposite question: is it *there*.
+   */
+  it.each(CONSTRUCT_KINDS)("%s — draws an element of its own, holding every slot it declares", (kind) => {
+    const content = normalize([text("a"), buildConstruct(kind, filledSlots(kind)), text("b")]);
+    const host = document.createElement("div");
+    host.innerHTML = renderToStaticMarkup(<>{renderNodes(content)}</>);
+
+    const drawn = host.querySelector<HTMLElement>(`[data-math="${kind}"]`);
+    expect(drawn, `${kind} drew nothing at all`).not.toBeNull();
+    // Its slots are inside it, all of them, in the order the row declares.
+    expect([...drawn!.querySelectorAll<HTMLElement>("[data-slot]")].map((slot) => slot.dataset.slot))
+      .toEqual(specOf(kind).slots.map((slot) => slot.key));
+    // And what is written inside actually reaches the page rather than the tree alone.
+    expect(host.textContent).toBe(`a${"1".repeat(specOf(kind).slots.length)}b`);
+  });
+
   it.each(CONSTRUCT_KINDS)("%s — gives every address it renders a node in the tree it came from", (kind) => {
     for (const tree of corpusOf(kind, 8)) {
       const host = document.createElement("div");
