@@ -222,7 +222,7 @@ export function mountEditor(fixture: Fixture): MountedEditor {
   const root = createRoot(host);
   // Pinned rather than auto-hidden: the tools are on the row being typed into, which is
   // the state a user typing is in, and it is what puts the dividers on the page.
-  act(() => root.render(<MathInput defaultValue={fixture.value} autoHideToolbar={false} />));
+  act(() => root.render(<MathInput defaultValue={fixture.value} toolbar={{ autoHide: false }} />));
 
   const field = host.querySelector<HTMLElement>(".math-input__field");
   if (!field) throw new Error(`${fixture.name}: the editor rendered no field`);

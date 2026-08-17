@@ -34,13 +34,13 @@ describe("the toolbar as one tab stop", () => {
   const arrow = (host: HTMLElement, key: string) => act(() => { toolbar(host).dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })); });
 
   it("offers exactly one tab stop, however many buttons it holds", () => {
-    const host = render(<MathInput autoHideToolbar={false} />);
+    const host = render(<MathInput toolbar={{ autoHide: false }} />);
     expect(buttons(host).length).toBeGreaterThan(10);
     expect(stops(host)).toEqual(["Square root"]);
   });
 
   it("moves along the strip with the arrow keys, and wraps", () => {
-    const host = render(<MathInput autoHideToolbar={false} />);
+    const host = render(<MathInput toolbar={{ autoHide: false }} />);
     arrow(host, "ArrowRight");
     expect(stops(host)).toEqual(["Cube root"]);
     arrow(host, "ArrowLeft");
@@ -51,7 +51,7 @@ describe("the toolbar as one tab stop", () => {
   });
 
   it("jumps to the ends with Home and End", () => {
-    const host = render(<MathInput autoHideToolbar={false} />);
+    const host = render(<MathInput toolbar={{ autoHide: false }} />);
     arrow(host, "End");
     expect(stops(host)).toEqual(["Forward"]);
     arrow(host, "Home");
@@ -59,7 +59,7 @@ describe("the toolbar as one tab stop", () => {
   });
 
   it("moves focus with the tab stop, which is the other half of the pattern", () => {
-    const host = render(<MathInput autoHideToolbar={false} />);
+    const host = render(<MathInput toolbar={{ autoHide: false }} />);
     arrow(host, "ArrowRight");
     expect(document.activeElement?.getAttribute("title")).toBe("Cube root");
   });
@@ -78,7 +78,7 @@ describe("what a screen reader is given", () => {
   });
 
   it("names every row and every control", () => {
-    const host = render(<MathInput autoHideToolbar={false} defaultValue={"1\n2"} aria-label="Working" />);
+    const host = render(<MathInput toolbar={{ autoHide: false }} defaultValue={"1\n2"} aria-label="Working" />);
     expect([...host.querySelectorAll(".math-input__field")].map((row) => row.getAttribute("aria-label")))
       .toEqual(["Working, row 1", "Working, row 2"]);
     for (const button of host.querySelectorAll(".math-input__toolbar button")) expect(button.getAttribute("aria-label")).toBeTruthy();

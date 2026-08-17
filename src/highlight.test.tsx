@@ -28,12 +28,12 @@ describe("the slot the caret is in", () => {
   const marked = (host: HTMLElement) => [...host.querySelectorAll("[data-caret-slot]")].map((slot) => slot.getAttribute("data-path"));
 
   it("is not marked when the caret is not in one", () => {
-    const host = render(<MathInput autoHideToolbar={false} defaultValue="1+2" />);
+    const host = render(<MathInput toolbar={{ autoHide: false }} defaultValue="1+2" />);
     expect(marked(host)).toEqual([]);
   });
 
   it("is marked when a construct opens and the caret lands inside it", () => {
-    const host = render(<MathInput autoHideToolbar={false} defaultValue="" />);
+    const host = render(<MathInput toolbar={{ autoHide: false }} defaultValue="" />);
     const press = (title: string) => act(() => host.querySelector<HTMLButtonElement>(`.math-input__tool[title="${title}"]`)!.click());
     press("Fraction");
     // The tool opens a fraction at its numerator, and that is the slot now being written in.
@@ -41,7 +41,7 @@ describe("the slot the caret is in", () => {
   });
 
   it("moves with the caret, and marks exactly one slot at a time", () => {
-    const host = render(<MathInput autoHideToolbar={false} defaultValue="" />);
+    const host = render(<MathInput toolbar={{ autoHide: false }} defaultValue="" />);
     const press = (title: string) => act(() => host.querySelector<HTMLButtonElement>(`.math-input__tool[title="${title}"]`)!.click());
     press("Fraction");
     expect(marked(host)).toEqual(["1.numerator"]);

@@ -52,12 +52,31 @@ Everything is optional; `<MathInput />` on its own is a working uncontrolled fie
 | `onChange` | `(value: string) => void` | — | Called with the LaTeX after every edit. |
 | `placeholder` | `string` | `"Write a formula…"` | Shown in a row while it is empty. |
 | `disabled` | `boolean` | `false` | Nothing can be typed and the tools stop responding. The formula stays readable and selectable. |
-| `autoHideToolbar` | `boolean` | `true` | Tools appear on the focused row only. `false` keeps them on the row the caret last sat in. |
-| `showOperators` | `boolean` | `true` | The `+` `−` `:` `⋅` group. `false` for a field only ever filled in from a keyboard. |
-| `showNavigation` | `boolean` | `true` | The `←` `→` group, which moves the caret exactly as the arrow keys do. |
+| `toolbar` | `ToolbarOptions \| false` | `{}` | What the tools show, and when — see below. `false` for a field with none at all. |
 | `className` | `string` | `""` | Added to the wrapper element. |
 | `style` | `CSSProperties` | — | Wrapper style, and where the CSS variables below go. |
 | `aria-label` | `string` | `"Math editor"` | The editor's accessible name; each row is named from it too. |
+
+### The toolbar
+
+One prop describes the whole strip. Every key is optional and every default is on:
+
+| Key | What it does |
+| --- | --- |
+| `autoHide` | `true` — the tools appear on the focused row only. `false` keeps them on the row the caret last sat in. |
+| `constructs` | The `√` `∛` `½` `xⁿ` `( )` group: the formulas that have to be built rather than typed. |
+| `operators` | The `+` `−` `:` `⋅` group. Off for a field only ever filled in from a keyboard. |
+| `navigation` | The `←` `→` group, which moves the caret exactly as the arrow keys do. |
+
+```tsx
+<MathInput toolbar={{ autoHide: false }} />               // pinned, everything shown
+<MathInput toolbar={{ operators: false }} />              // no operator buttons
+<MathInput toolbar={false} />                             // no tools at all
+```
+
+`toolbar={false}` removes the strip and its tab stop. It also removes the remove-row control, which lives in it — so on a multi-row editor there is then no way to delete a row, since `Backspace` does not yet merge one into the row above. That is a limitation of this release rather than a property of the prop; until it is lifted, pair `toolbar={false}` with a single-row field.
+
+> **Renamed in 0.5.0.** `autoHideToolbar`, `showOperators` and `showNavigation` still work and still do exactly what they did; each warns once, in development, naming what to write instead. They go in 0.7.0. [MIGRATING-0.5.0.md](MIGRATING-0.5.0.md) has the codemod.
 
 ### Controlled or uncontrolled
 
@@ -85,7 +104,7 @@ A controlled `value` you did not just receive from `onChange` replaces the conte
 By default the tools follow the caret and vanish when the editor is left, which keeps a page of fields quiet. In a single-field layout — a quiz question, a homework box — pinning them is friendlier:
 
 ```tsx
-<MathInput autoHideToolbar={false} />
+<MathInput toolbar={{ autoHide: false }} />
 ```
 
 They then sit on the row the caret last used, on the first row until the field is touched. Using a tool while the row is not focused puts the caret back in that row, so typing carries on where the edit landed.
@@ -100,7 +119,7 @@ The formula still renders and can be selected and copied; only editing stops.
 
 ## What can be typed
 
-The toolbar comes in three groups, divided: the formulas that have to be built — a square root, a cube root, a fraction, a power, brackets — then the four operators `+` `−` `:` `⋅`, then the two arrows that move the caret. Every button does what the matching key does, so a field can be filled in on a tablet with no keyboard at all. The last two groups are `showOperators` and `showNavigation`, on by default and switched off one at a time; the formulas have no switch, since building those is what the field is for. Subscripts have no button — `_` writes them. The rest is the keyboard:
+The toolbar comes in three groups, divided: the formulas that have to be built — a square root, a cube root, a fraction, a power, brackets — then the four operators `+` `−` `:` `⋅`, then the two arrows that move the caret. Every button does what the matching key does, so a field can be filled in on a tablet with no keyboard at all. Each group is on by default and switched off on its own through `toolbar`. Subscripts have no button — `_` writes them. The rest is the keyboard:
 
 | Key | What it does |
 | --- | --- |
@@ -147,10 +166,21 @@ const fieldStyle = {
   "--math-input-field-padding": "18px",
 } as CSSProperties;
 
-<MathInput style={fieldStyle} autoHideToolbar={false} />;
+<MathInput style={fieldStyle} toolbar={{ autoHide: false }} />;
 ```
 
 ![The same editor in a violet theme](https://raw.githubusercontent.com/belichuk/MathInput/main/docs/images/themed.png)
+
+Every name is `--math-input-` and then what it applies to, which is one of four things:
+
+| Prefix | Applies to |
+| --- | --- |
+| *(none)* | The component as a whole — its colours, its typefaces, its shape |
+| `field-` | The writing surface only: the box a formula is typed into |
+| `control-` | The buttons: the tools, the row controls, the scrollbar's thumb |
+| `root-` | The radical, whose drawing is the one piece of geometry a host can tune |
+
+Three names predate the rule and are kept rather than churned: `--math-input-border-color`, `--math-input-border-width` and `--math-input-radius` are the *field's* border and corners, so by the rule they would carry `field-`. They are not renamed here, because a rename is only worth a host's time when the old name misleads about what it does, and these do not.
 
 | Variable | Default | Controls |
 | --- | --- | --- |
@@ -166,7 +196,7 @@ const fieldStyle = {
 | `--math-input-accent-soft-color` | `#e7eef8` | Focus rings |
 | `--math-input-control-color` | `#506887` | Tool icons |
 | `--math-input-control-hover-color` | `#2f4c70` | Tool icons, hovered |
-| `--math-input-control-hover-border` | `#9db2cc` | Tool borders, hovered |
+| `--math-input-control-hover-border-color` | `#9db2cc` | Tool borders, hovered, and the scrollbar's thumb under the pointer |
 | `--math-input-radius` | `16px` | Field corners |
 | `--math-input-control-radius` | `8px` | Button corners |
 | `--math-input-field-padding` | `14px` | Space around a formula |
@@ -179,6 +209,8 @@ const fieldStyle = {
 | `--math-input-operator-space` | `0.222em` | Either side of `+` `−` `⋅` `:` where they are an operation. TeX's medium space |
 | `--math-input-relation-space` | `0.278em` | Either side of `=`. TeX's thick space |
 | `--math-input-max-width` | `48rem` | Widest the editor grows |
+
+> **Renamed in 0.5.0.** `--math-input-control-hover-border` became `--math-input-control-hover-border-color`, so that it says what it sets the way every other colour here does. Both names are read — the new one first — until 0.7.0, so nothing needs changing today.
 
 Both radical values describe a root over *one line* of writing. A taller root is scaled from them — the stroke grows heavier and the radical reaches further, both stopping once a root is tall enough that more of either would read as a thicker mark rather than a taller one. Setting one value keeps the whole range in proportion; there is nothing to tune per size, because there are no longer three sizes.
 
@@ -260,7 +292,7 @@ For several rows, split on `\n` and render each line into its own element.
 
 ### Several fields on a page
 
-Nothing needs coordinating, and the default `autoHideToolbar` keeps a page of fields quiet — only the focused one shows its tools. Give each an `aria-label` so they are distinguishable:
+Nothing needs coordinating, and the default `toolbar.autoHide` keeps a page of fields quiet — only the focused one shows its tools. Give each an `aria-label` so they are distinguishable:
 
 ```tsx
 {questions.map((question) => (

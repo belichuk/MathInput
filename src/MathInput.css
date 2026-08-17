@@ -12,7 +12,13 @@
   --math-input-accent-soft-color: #e7eef8;
   --math-input-control-color: #506887;
   --math-input-control-hover-color: #2f4c70;
+  /* Renamed in 0.5.0 to `--math-input-control-hover-border-color`, which says what it sets the
+     way every other colour here does — the only one of the eight that did not. The old name is
+     still read, second, so a host that set it keeps the colour it chose until 0.7.0 takes the
+     name away. Both are read through one internal value rather than at each of the two places
+     that use it, so the pair cannot fall out of step. */
   --math-input-control-hover-border: #9db2cc;
+  --_control-hover-border: var(--math-input-control-hover-border-color, var(--math-input-control-hover-border));
   /* Declared rather than only referenced: it was read with a fallback and never set, so a
      host overriding it had nothing to override. */
   --math-input-max-width: 48rem;
@@ -131,7 +137,7 @@
 
 .math-input__tool:hover,
 .math-input__new-row:hover {
-  border-color: var(--math-input-control-hover-border);
+  border-color: var(--_control-hover-border);
   background: var(--math-input-subtle-surface);
   color: var(--math-input-control-hover-color);
 }
@@ -271,7 +277,7 @@
 
 .math-input__scrollbar-thumb:hover,
 .math-input__scrollbar-thumb:active {
-  background: var(--math-input-control-hover-border);
+  background: var(--_control-hover-border);
 }
 
 .math-input__scrollbar-thumb:active {

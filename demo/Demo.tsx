@@ -1,4 +1,4 @@
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 import { MathInput } from "../src";
 
 type FieldTheme = {
@@ -49,9 +49,10 @@ function ToggleControl({ label, checked, onChange }: { label: string; checked: b
 export function Demo() {
   const [latex, setLatex] = useState("");
   const [theme, setTheme] = useState(defaultTheme);
-  const [autoHideToolbar, setAutoHideToolbar] = useState(true);
-  const [showOperators, setShowOperators] = useState(true);
-  const [showNavigation, setShowNavigation] = useState(true);
+  const [autoHide, setAutoHide] = useState(true);
+  const [constructs, setConstructs] = useState(true);
+  const [operators, setOperators] = useState(true);
+  const [navigation, setNavigation] = useState(true);
   const [disabled, setDisabled] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [rawCopied, setRawCopied] = useState(false);
@@ -68,6 +69,11 @@ export function Demo() {
     "--math-input-color": theme.ink,
     "--math-input-field-padding": `${theme.padding}px`,
   } as CSSProperties;
+  // Memoised on its four booleans: `toolbar` is an object, and a fresh one on every render
+  // would defeat the memoisation the editor does on the row beneath it.
+  const toolbar = useMemo(() => ({ autoHide, constructs, operators, navigation }), [autoHide, constructs, operators, navigation]);
+  const chosen = Object.entries({ autoHide, constructs, operators, navigation }).filter(([, on]) => !on);
+  const toolbarSource = chosen.length === 0 ? "" : ` toolbar={{ ${chosen.map(([key]) => `${key}: false`).join(", ")} }}`;
   const componentCode = `import type { CSSProperties } from "react";
 import { MathInput } from "@belichuk/math-input";
 import "@belichuk/math-input/styles.css";
@@ -85,7 +91,7 @@ const fieldStyle = {
 } as CSSProperties;
 
 export function AnswerField() {
-  return <MathInput style={fieldStyle}${autoHideToolbar ? "" : " autoHideToolbar={false}"}${showOperators ? "" : " showOperators={false}"}${showNavigation ? "" : " showNavigation={false}"}${disabled ? " disabled" : ""} />;
+  return <MathInput style={fieldStyle}${toolbarSource}${disabled ? " disabled" : ""} />;
 }`;
   const copyText = async (text: string, setCopied: (copied: boolean) => void) => {
     await navigator.clipboard.writeText(text);
@@ -103,7 +109,7 @@ export function AnswerField() {
       <aside className="demo-customizer" aria-label="Field customization">
         <div className="demo-customizer-heading">
           <p>Field controls</p>
-          <button type="button" onClick={() => { setTheme(defaultTheme); setAutoHideToolbar(true); setShowOperators(true); setShowNavigation(true); setDisabled(false); }}>Reset</button>
+          <button type="button" onClick={() => { setTheme(defaultTheme); setAutoHide(true); setConstructs(true); setOperators(true); setNavigation(true); setDisabled(false); }}>Reset</button>
         </div>
         <RangeControl label="Corner radius" value={theme.radius} min={0} max={32} unit="px" onChange={(value) => setThemeValue("radius", value)} />
         <RangeControl label="Field padding" value={theme.padding} min={8} max={24} unit="px" onChange={(value) => setThemeValue("padding", value)} />
@@ -111,15 +117,16 @@ export function AnswerField() {
         <ColorControl label="Accent" value={theme.accentColor} onChange={(value) => setThemeValue("accentColor", value)} />
         <ColorControl label="Surface" value={theme.surface} onChange={(value) => setThemeValue("surface", value)} />
         <ColorControl label="Formula ink" value={theme.ink} onChange={(value) => setThemeValue("ink", value)} />
-        <ToggleControl label="Auto-hide toolbar" checked={autoHideToolbar} onChange={setAutoHideToolbar} />
-        <ToggleControl label="Operator buttons" checked={showOperators} onChange={setShowOperators} />
-        <ToggleControl label="Navigation buttons" checked={showNavigation} onChange={setShowNavigation} />
+        <ToggleControl label="Auto-hide toolbar" checked={autoHide} onChange={setAutoHide} />
+        <ToggleControl label="Formula buttons" checked={constructs} onChange={setConstructs} />
+        <ToggleControl label="Operator buttons" checked={operators} onChange={setOperators} />
+        <ToggleControl label="Navigation buttons" checked={navigation} onChange={setNavigation} />
         <ToggleControl label="Disabled" checked={disabled} onChange={setDisabled} />
       </aside>
 
       <div className="demo-preview-column">
         <section className="demo-canvas" aria-label="Math editor">
-          <MathInput value={latex} onChange={setLatex} placeholder="Type a formula" autoHideToolbar={autoHideToolbar} showOperators={showOperators} showNavigation={showNavigation} disabled={disabled} className="demo-math-input" style={mathInputStyle} />
+          <MathInput value={latex} onChange={setLatex} placeholder="Type a formula" toolbar={toolbar} disabled={disabled} className="demo-math-input" style={mathInputStyle} />
           {disabled
             ? <p className="demo-hint">The field is <code>disabled</code>: the formula still renders and can be selected and copied, but nothing can be written or removed — an answer shown back to whoever wrote it.</p>
             : <p className="demo-hint">Press <kbd>Enter</kbd> or use the row action to expand · <kbd>←</kbd> <kbd>→</kbd> moves through a formula · <kbd>Space</kbd> steps past what is in front of the caret · click to its right or press <kbd>End</kbd> to continue after it · <kbd>Esc</kbd> leaves the field</p>}

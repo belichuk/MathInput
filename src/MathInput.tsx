@@ -9,6 +9,25 @@ import { renderNodes } from "./render";
 import { applySelection, caretScrollOffset, positionFromPoint, repairField, selectionFromDom } from "./selection";
 import { type History, emptyHistory, record, redo, undo } from "./history";
 
+/**
+ * What the toolbar shows, and when.
+ *
+ * One prop rather than three, because the three were a prop each for the first three answers
+ * to the same question and there was no room in that shape for the fourth: `constructs`, or
+ * for `toolbar={false}`, which is the whole strip gone. Every field is optional and every
+ * default is `true` except nothing — an omitted key is the toolbar as it has always been.
+ */
+export type ToolbarOptions = {
+  /** Show a row's tools only while it has focus. Off keeps them on the last used row. */
+  autoHide?: boolean;
+  /** The `√ ∛ ½ xⁿ ( )` group — the formulas that have to be built rather than typed. */
+  constructs?: boolean;
+  /** The `+ − : ⋅` group. Off for a field only ever filled in from a keyboard. */
+  operators?: boolean;
+  /** The `← →` group, which moves the caret through a formula the arrow keys' way. */
+  navigation?: boolean;
+};
+
 export type MathInputProps = {
   /** One LaTeX-compatible expression per line. */
   value?: string;
@@ -16,11 +35,13 @@ export type MathInputProps = {
   onChange?: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
-  /** Show a row's tools only while it has focus. Off keeps them on the last used row. */
+  /** The toolbar, or `false` for a field with no tools at all — see {@link ToolbarOptions}. */
+  toolbar?: ToolbarOptions | false;
+  /** @deprecated Since 0.5.0; removed in 0.7.0. Use `toolbar={{ autoHide: … }}`. */
   autoHideToolbar?: boolean;
-  /** The `+ − : ⋅` group. Off for a field only ever filled in from a keyboard. */
+  /** @deprecated Since 0.5.0; removed in 0.7.0. Use `toolbar={{ operators: … }}`. */
   showOperators?: boolean;
-  /** The `← →` group, which moves the caret through a formula the arrow keys' way. */
+  /** @deprecated Since 0.5.0; removed in 0.7.0. Use `toolbar={{ navigation: … }}`. */
   showNavigation?: boolean;
   className?: string;
   style?: CSSProperties;
@@ -140,6 +161,59 @@ const TOOL_GROUPS: { key: ToolGroupKey; label: string; tools: { icon: EditorIcon
     ],
   },
 ];
+
+/** The three props one prop replaces, each paired with the key it becomes. */
+const RENAMED = [["autoHideToolbar", "autoHide"], ["showOperators", "operators"], ["showNavigation", "navigation"]] as const;
+
+type LegacyToolbarProps = Pick<MathInputProps, (typeof RENAMED)[number][0]>;
+
+/**
+ * `NODE_ENV`, read in a way that works wherever the bundle is loaded.
+ *
+ * A library cannot know how it is being built, so this has to survive three cases: a bundler
+ * that substitutes `process.env.NODE_ENV` outright, one that leaves `process` to Node, and a
+ * browser importing the ESM build with no `process` at all. The optional chaining is what keeps
+ * the first case from folding the whole expression to `false` and taking the warning with it —
+ * `define` matches the plain member expression, not this one. Where nothing says which build
+ * this is, the warning speaks: a deprecation notice that never appears is worse than one that
+ * appears where it was not needed.
+ */
+declare const process: { env?: Record<string, string | undefined> } | undefined;
+const IN_DEVELOPMENT = (typeof process === "undefined" ? undefined : process?.env?.NODE_ENV) !== "production";
+
+/** Warned about once per prop per page, not once per render, and never once per row. */
+const warnedOf = new Set<string>();
+
+function warnOfRenamedProps(props: LegacyToolbarProps) {
+  if (!IN_DEVELOPMENT) return;
+  for (const [was, now] of RENAMED) {
+    if (props[was] === undefined || warnedOf.has(was)) continue;
+    warnedOf.add(was);
+    console.warn(`MathInput: \`${was}\` is deprecated and goes in 0.7.0 — write \`toolbar={{ ${now}: ${props[was]} }}\`. See MIGRATING-0.5.0.md.`);
+  }
+}
+
+/**
+ * What the toolbar is, from the prop that describes it and the three it replaced.
+ *
+ * The old props are read only where the new one is silent, so a host mid-migration can set
+ * `toolbar` for what it has moved across and leave the rest — and one that sets both for the
+ * same group gets the new answer, which is the one it wrote most recently.
+ */
+function toolbarFrom(toolbar: MathInputProps["toolbar"], legacy: LegacyToolbarProps) {
+  if (toolbar === false) return null;
+  const shown: Record<ToolGroupKey, boolean | undefined> = {
+    formulas: toolbar?.constructs,
+    operators: toolbar?.operators ?? legacy.showOperators,
+    navigation: toolbar?.navigation ?? legacy.showNavigation,
+  };
+  return {
+    autoHide: toolbar?.autoHide ?? legacy.autoHideToolbar ?? true,
+    // Filtered before it is drawn, so the dividers follow the groups that are actually
+    // there rather than a hidden one leaving its line behind.
+    groups: TOOL_GROUPS.filter((group) => shown[group.key] !== false),
+  };
+}
 
 /**
  * Single characters that mean something other than themselves: structure, or a move.
@@ -322,7 +396,7 @@ const toRows = (latex: string): Row[] => latex.split("\n").map((line) => ({ id: 
 const sameRange = (first: SelectionRange, second: SelectionRange): boolean => samePosition(first.anchor, second.anchor) && samePosition(first.focus, second.focus);
 
 /** A dependency-free, visual formula editor that emits LaTeX-compatible text. */
-export function MathInput({ value, defaultValue = "", onChange, placeholder = "Write a formula…", disabled = false, autoHideToolbar = true, showOperators = true, showNavigation = true, className = "", style, "aria-label": ariaLabel = "Math editor" }: MathInputProps) {
+export function MathInput({ value, defaultValue = "", onChange, placeholder = "Write a formula…", disabled = false, toolbar, autoHideToolbar, showOperators, showNavigation, className = "", style, "aria-label": ariaLabel = "Math editor" }: MathInputProps) {
   const [state, setState] = useState<EditorState>(() => ({ rows: toRows(value ?? defaultValue), caret: null }));
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
   /** The row the caret last sat in, which keeps the tools when they are not auto-hidden. */
@@ -795,12 +869,29 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     dispatch(rowId, { type: "select", selection: collapsedAt(position) });
   }, [disabled, dispatch]);
 
+  /**
+   * The toolbar, resolved once from the prop and the three it deprecates.
+   *
+   * Taken apart into its fields first, and the dependencies are those fields rather than the
+   * object, because `toolbar={{ autoHide: false }}` is a fresh object on every render of the
+   * host — depending on it would rebuild `shell` on every keystroke and undo the memoisation
+   * that keeps a fifty-row worksheet from redrawing fifty rows.
+   */
+  const { autoHide, constructs, operators, navigation } = (toolbar === false ? undefined : toolbar) ?? {};
+  const hidden = toolbar === false;
+  const tools = useMemo(
+    () => toolbarFrom(hidden ? false : { autoHide, constructs, operators, navigation }, { autoHideToolbar, showOperators, showNavigation }),
+    [hidden, autoHide, constructs, operators, navigation, autoHideToolbar, showOperators, showNavigation],
+  );
+  useEffect(() => warnOfRenamedProps({ autoHideToolbar, showOperators, showNavigation }), [autoHideToolbar, showOperators, showNavigation]);
+
   // Which row wears the tools: the focused one, or — when they are pinned — the row the
   // caret last sat in, falling back to the first so a fresh editor still shows them.
   const toolbarRowId = useMemo(() => {
+    if (!tools) return null;
     const existing = (id: string | null) => (state.rows.some((row) => row.id === id) ? id : null);
-    return existing(activeRowId) ?? (autoHideToolbar ? null : existing(restingRowId) ?? state.rows[0].id);
-  }, [state.rows, activeRowId, restingRowId, autoHideToolbar]);
+    return existing(activeRowId) ?? (tools.autoHide ? null : existing(restingRowId) ?? state.rows[0].id);
+  }, [state.rows, activeRowId, restingRowId, tools]);
 
   /**
    * The shell a row is drawn against: everything about the editor that is not this row.
@@ -814,9 +905,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     disabled,
     placeholder,
     ariaLabel,
-    // Filtered before it is drawn, so the dividers follow the groups that are actually
-    // there rather than a hidden one leaving its line behind.
-    groups: TOOL_GROUPS.filter((group) => (group.key === "operators" ? showOperators : group.key === "navigation" ? showNavigation : true)),
+    groups: tools?.groups ?? [],
     registerField: (rowId, element) => { if (element) fields.current.set(rowId, element); else fields.current.delete(rowId); },
     registerThumb: (rowId, element) => { if (element) thumbs.current.set(rowId, element); else thumbs.current.delete(rowId); },
     // A toolbar that stays put can be used while its row is not focused, and an edit whose
@@ -835,7 +924,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     paste: (rowId, text) => dispatch(rowId, { type: "paste", text }),
     pickPosition,
     dragScrollbar,
-  }), [disabled, placeholder, ariaLabel, showOperators, showNavigation, focusRow, dispatch, removeRow, createRow, focusField, paintRow, measureRow, repair, endComposition, pickPosition, dragScrollbar]);
+  }), [disabled, placeholder, ariaLabel, tools, focusRow, dispatch, removeRow, createRow, focusField, paintRow, measureRow, repair, endComposition, pickPosition, dragScrollbar]);
 
   return <div className={`math-input ${className}`.trim()} style={style}>
     <div className="math-input__frame" ref={frame} aria-labelledby={labelId}>
