@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type CaretPosition, type FormulaNode, collapsedAt } from "./model";
-import { clampPosition, endOfArray, enterNode, nextPosition, previousPosition, rowEnd, rowStart, skipForward, stepVertically } from "./caret";
+import { clampPosition, endOfArray, enterNode, nextPosition, previousPosition, rowEnd, rowStart, skipForward, stepThroughSlots, stepVertically } from "./caret";
 import { parseLatex } from "./parse";
 import { at, inside, rowOf, sketch, top } from "./testing";
 
@@ -242,5 +242,46 @@ describe("stepVertically", () => {
     // Above an exponent and below a subscript there is nothing either.
     expect(move("x^{2}", inside(1, "exponent", 0, 1), "up")).toBeNull();
     expect(move("x_{i}", inside(1, "subscript", 0, 1), "down")).toBeNull();
+  });
+});
+
+describe("stepThroughSlots", () => {
+  const walk = (latex: string, from: CaretPosition, direction: "forward" | "backward") => {
+    const content = parseLatex(latex);
+    const next = stepThroughSlots(content, from, direction);
+    return next ? sketch({ content, selection: collapsedAt(next) }) : null;
+  };
+
+  it("lands at the start of an empty slot and the end of a written one", () => {
+    expect(walk("\\frac{}{2}", top(0, 0), "forward")).toBe("\\frac{|}{2}");
+    expect(walk("\\frac{12}{2}", top(0, 0), "forward")).toBe("\\frac{12|}{2}");
+  });
+
+  it("starts at the first slot when the caret is in none", () => {
+    expect(walk("\\frac{1}{2}", top(0, 0), "forward")).toBe("\\frac{1|}{2}");
+    // Backwards out of the row there is nothing, so Tab leaves the field.
+    expect(walk("\\frac{1}{2}", top(0, 0), "backward")).toBeNull();
+  });
+
+  it("walks the slots in the order they are drawn", () => {
+    expect(walk("\\frac{1}{2}", inside(1, "numerator", 0, 1), "forward")).toBe("\\frac{1}{2|}");
+    expect(walk("\\frac{1}{2}", inside(1, "denominator", 0, 1), "backward")).toBe("\\frac{1|}{2}");
+    // A root's index comes before its radicand, because that is where it is drawn.
+    expect(walk("\\sqrt[3]{8}", inside(1, "index", 0, 1), "forward")).toBe("\\sqrt[3]{8|}");
+  });
+
+  it("goes into what a slot holds before moving on to the next one", () => {
+    // The numerator, then the fraction inside it, then the outer denominator.
+    const latex = "\\frac{\\frac{a}{b}}{c}";
+    expect(walk(latex, inside(1, "numerator", 0, 0), "forward")).toBe("\\frac{\\frac{a|}{b}}{c}");
+    const inner = at([{ index: 1, branch: "numerator" }, { index: 1, branch: "denominator" }, { index: 0 }], 1);
+    expect(walk(latex, inner, "forward")).toBe("\\frac{\\frac{a}{b}}{c|}");
+  });
+
+  it("has nowhere to go from the last slot, so the field is not a trap", () => {
+    expect(walk("\\frac{1}{2}", inside(1, "denominator", 0, 1), "forward")).toBeNull();
+    // Nor from a row with no slots in it at all.
+    expect(walk("1+2", top(0, 1), "forward")).toBeNull();
+    expect(walk("", top(0, 0), "forward")).toBeNull();
   });
 });

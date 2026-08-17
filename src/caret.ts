@@ -1,6 +1,6 @@
 import {
   type CaretPosition, type FormulaNode, type Path,
-  arrayPathOf, branchKeys, enclosingNodePath, isCompound, isText, nextBoundary, previousBoundary, resolve, resolveArray, resolveNode, slotPath, stepOf,
+  arrayPathOf, branchesOf, branchKeys, enclosingNodePath, isBlank, isCompound, isText, nextBoundary, previousBoundary, resolve, resolveArray, resolveNode, samePath, slotPath, stepOf,
 } from "./model";
 import { specFor } from "./registry";
 
@@ -151,6 +151,42 @@ export function stepVertically(root: FormulaNode[], position: CaretPosition, dir
     path = nodePath;
   }
   return null;
+}
+
+/** Every slot in the row, in the order they are drawn — a construct's own slots, then what is in them. */
+function slotsIn(nodes: FormulaNode[], path: Path = []): Path[] {
+  const slots: Path[] = [];
+  nodes.forEach((node, index) => {
+    if (!isCompound(node)) return;
+    for (const branch of branchesOf(node)) {
+      const slot = slotPath([...path, { index }], branch.key);
+      slots.push(slot, ...slotsIn(branch.nodes, slot));
+    }
+  });
+  return slots;
+}
+
+/**
+ * The next slot to fill in, or null when there is none left in this direction.
+ *
+ * Tab walks the boxes of a formula rather than the characters, which is how a formula is
+ * filled in when there is no mouse: open a fraction, write the numerator, Tab, write the
+ * denominator. Null is the important half of the answer — it means the caret has run out of
+ * slots and Tab should do what Tab does everywhere else and leave the field. A field that
+ * swallowed every Tab would be a keyboard trap, which is a failure of WCAG 2.1.2 and, rather
+ * more to the point, a field nobody can get out of.
+ */
+export function stepThroughSlots(root: FormulaNode[], position: CaretPosition, direction: "forward" | "backward"): CaretPosition | null {
+  const slots = slotsIn(root);
+  // The slot the caret is in is its path without the run at the end; at the top of the row
+  // that is nothing at all, and Tab starts at the first slot there is.
+  const here = slots.findIndex((slot) => samePath(slot, position.path.slice(0, -1)));
+  const next = here < 0 ? (direction === "forward" ? 0 : -1) : direction === "forward" ? here + 1 : here - 1;
+  if (next < 0 || next >= slots.length) return null;
+  // At the start of a slot with nothing in it, at the end of one already written in — which is
+  // where writing carries on from, and the same rule a construct opened around a term follows.
+  const slot = slots[next];
+  return isBlank(resolveArray(root, slot) ?? []) ? startOfArray(slot) : endOfArray(root, slot);
 }
 
 /** Clamps a position onto a real text run — used when a native gesture leaves the caret somewhere odd. */

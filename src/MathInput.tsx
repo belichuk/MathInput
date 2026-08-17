@@ -1,7 +1,7 @@
 import { type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./MathInput.css";
 import { type FormulaNode, type SelectionRange, collapsedAt, encodePath, isBlank, samePosition } from "./model";
-import { clampPosition, rowEnd, rowStart, stepVertically } from "./caret";
+import { clampPosition, rowEnd, rowStart, stepThroughSlots, stepVertically } from "./caret";
 import { type Action, type CompoundKind, type RowState, reduce } from "./reducers";
 import { parseLatex } from "./parse";
 import { serializeToLatex } from "./serialize";
@@ -555,6 +555,22 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
       // this one no more than the rest, so a dialog around the editor closes on the
       // second press, once the editor is out.
       if (key.key === "Escape") return take(true);
+      /**
+       * Tab walks the boxes of a formula rather than the characters: open a fraction, write
+       * the numerator, Tab, write the denominator. With no slot left in that direction it is
+       * not taken at all, and the browser moves focus out of the field the way it does
+       * everywhere else — which is what keeps this from being a keyboard trap.
+       */
+      if (key.key === "Tab") {
+        const current = live.current;
+        const row = current.rows.find((candidate) => candidate.id === rowId);
+        const caret = current.caret?.rowId === rowId ? current.caret.range.focus : null;
+        const target = row && caret ? stepThroughSlots(row.content, caret, key.shiftKey ? "backward" : "forward") : null;
+        if (!target) return;
+        take(true);
+        dispatch(rowId, { type: "select", selection: collapsedAt(target) });
+        return;
+      }
       if (key.shiftKey && key.key.startsWith("Arrow")) return take(false); // native selection extension
       if (key.key === "ArrowLeft" || key.key === "ArrowRight") {
         take(true);

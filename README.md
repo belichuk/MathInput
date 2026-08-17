@@ -110,15 +110,16 @@ The toolbar comes in three groups, divided: the formulas that have to be built �
 | `(` | Opens a bracket pair that grows to fit whatever is put in it |
 | `)` | Steps back out of the brackets it is typed in |
 | `*` | Written as `⋅` and emitted as `\cdot` |
-| `=` | Comes out to the row first, so it always separates whole formulas |
+| `=` | Comes out of anything that cannot hold a relation — a numerator, a radicand, an exponent — and stops at the first thing that can, so `(x=1)` stays inside its brackets |
 | `Space` | Steps past what is in front of the caret: the rest of the run, a whole formula, or the slot itself — `\sqrt{9\|}` becomes `\sqrt{9}\|` |
 | `←` `→` | Step through every slot in reading order, then out of the formula |
+| `↑` `↓` | Move between the slots a formula stacks — numerator and denominator, exponent and base — and between rows when nothing around the caret stacks anything |
 | `Home` `End` | Start and end of the row |
 | `Enter` | Adds a row |
 | `Backspace` `Delete` | One thing per press: a character, or the formula beside the caret as a whole |
 | `Ctrl`/`Cmd`+`Z`, `Shift`+`Ctrl`/`Cmd`+`Z` | Undo and redo, a run of typing at a time |
 | `Esc` | Leaves the field |
-| `Tab` | Moves focus onward, untouched by the editor |
+| `Tab`, `Shift`+`Tab` | Walk the slots of the formula, in the order they are drawn. With no slot left in that direction the field is left, the way `Tab` leaves anything else |
 
 A sign written straight after another takes its place: `1+` then `−` is `1−`, and `1−` then `*` is `1⋅`, from the keyboard or the toolbar. Two signs in a row are a slip rather than a formula, and the second is the correction — so a mistyped operator is fixed by pressing the right one, with no backspace in between. Only a sign replaces a sign: after a digit, a bracket or a whole formula it is simply written, so a minus that opens a row, a bracket or a slot is a negative as it always was.
 
@@ -298,13 +299,31 @@ One thing to know: rows are identified with `crypto.randomUUID`, which browsers 
 
 ## Accessibility
 
-The editor is a `textbox` per row, named from `aria-label` (`"Math editor, row 2"`), reachable and leavable with `Tab`, and driven entirely from the keyboard. `Esc` steps out of the field. Every tool is a real button with a label and a title. What it does not yet do is announce the formula's structure to a screen reader beyond the text it contains.
+The editor is a `textbox` per row, named from `aria-label` (`"Math editor, row 2"`), and driven entirely from the keyboard. `Esc` steps out of the field at once.
+
+**`Tab` changed in 0.5.0.** It used to pass straight through, moving focus the way it does anywhere else. It now walks the *slots* of the formula in the order they are drawn — which is what filling one in without a mouse actually needs: open a fraction, write the numerator, `Tab`, write the denominator. When there is no slot left in that direction it is not taken at all and focus leaves the field as before, so the field is never a keyboard trap (WCAG 2.1.2). A host that relied on a single `Tab` always leaving a field should know that it may now take several, and `Esc` still leaves in one.
+
+Every tool is a real button with a label and a title, and the slot the caret is in is marked while you write in it, so a formula several boxes deep says which box is being filled. What the editor does not yet do is announce the formula's structure to a screen reader beyond the text it contains.
 
 ## Keyboard policy
 
-A keystroke aimed at a formula belongs to the editor alone. Every key the editor takes — printable characters, `Backspace` and `Delete`, `←` `→`, `Home`, `End`, `Enter`, `Escape`, `Ctrl`/`Cmd`+`Z`/`Y`, and anything an IME is composing — stops at the component, press and release alike, so a page that opens a search box on `/` or steps a carousel on `←` does not act on a fraction being typed. The host does not have to guard its own shortcuts against the editor.
+A keystroke aimed at a formula belongs to the editor alone. This is the whole of what it takes, press and release alike — the list is the contract, and nothing outside it is touched:
 
-Keys the editor has no use for are left completely alone: `Tab` and `Shift`+`Tab` still move focus, and application shortcuts such as `Ctrl`/`Cmd`+`S` still arrive, as do `Ctrl`/`Cmd`+`C`/`V`/`A`, which the field handles natively.
+| Contained | |
+| --- | --- |
+| Printable characters | Everything typed into a formula |
+| `Backspace` `Delete` | |
+| `←` `→` `Home` `End` | Movement within the row |
+| `↑` `↓` | Only while there is a slot or a row to move to; otherwise left alone |
+| `Tab` `Shift`+`Tab` | Only while there is a slot left to walk to; otherwise left alone, and focus leaves |
+| `Enter` | Adds a row, so a form is never submitted from inside a formula |
+| `Escape` | Leaves the field |
+| `Ctrl`/`Cmd`+`Z`, `Shift`+`Ctrl`/`Cmd`+`Z`, `Ctrl`/`Cmd`+`Y` | Undo and redo |
+| Anything an IME is composing | |
+
+So a page that opens a search box on `/` or steps a carousel on `←` does not act on a fraction being typed, and the host does not have to guard its own shortcuts against the editor.
+
+Everything else is left completely alone: application shortcuts such as `Ctrl`/`Cmd`+`S` still arrive, as do `Ctrl`/`Cmd`+`C`/`V`/`A`, which the field handles natively.
 
 `Escape` leaves the field. It is taken like the rest, so a dialog around the editor closes on the second press — the first steps out of the formula, the second reaches the dialog.
 
