@@ -2,11 +2,11 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
-## Unreleased
+## 0.5.0 — 2026-08-17
 
-Work in hand for the next release. The release workflow takes a version's notes out of this
-file and refuses to publish a version that has none, so this section exists from the first
-commit of a release rather than being written at the end of it.
+The release where a construct stopped being knowledge spread across seven files and became a
+row in a table — and where a formula started looking like mathematics rather than like
+characters in a row.
 
 Two halves. Everything about how the field *works* — how it is built, what a keystroke costs,
 how much of it there is — changed without changing what it does at all. Everything about how

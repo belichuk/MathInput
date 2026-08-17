@@ -121,9 +121,11 @@ The toolbar comes in three groups, divided: the formulas that have to be built �
 | `Esc` | Leaves the field |
 | `Tab`, `Shift`+`Tab` | Walk the slots of the formula, in the order they are drawn. With no slot left in that direction the field is left, the way `Tab` leaves anything else |
 
+Selecting something and then opening a formula writes the formula *around* it: select `x+1`, press `/`, and it is the numerator with the caret waiting in the denominator; press the root button and it is the radicand. The slot the caret is in is marked while you write, so a formula several boxes deep says which box is being filled.
+
 A sign written straight after another takes its place: `1+` then `−` is `1−`, and `1−` then `*` is `1⋅`, from the keyboard or the toolbar. Two signs in a row are a slip rather than a formula, and the second is the correction — so a mistyped operator is fixed by pressing the right one, with no backspace in between. Only a sign replaces a sign: after a digit, a bracket or a whole formula it is simply written, so a minus that opens a row, a bracket or a slot is a negative as it always was.
 
-No whitespace is ever written into a formula — pasted spaces are dropped, and the space bar moves the caret instead — and a formula opened in front of written work wraps it: with the caret at `1/2+|10`, typing `(` gives `\frac{1}{2}+\left(10\right)` with the caret inside the brackets, after the `10`.
+Pasted LaTeX arrives as the formula it describes rather than as its own source: paste `\frac{1}{2}` and you get a fraction with slots to move around inside. Text with no structure in it is written literally, so pasting `1/2+3` gives those six characters — `/` is not LaTeX, whatever the `/` key does when pressed. No whitespace is ever written into a formula — pasted spaces are dropped, and the space bar moves the caret instead — and a formula opened in front of written work wraps it: with the caret at `1/2+|10`, typing `(` gives `\frac{1}{2}+\left(10\right)` with the caret inside the brackets, after the `10`.
 
 ## Styling
 
@@ -171,13 +173,13 @@ const fieldStyle = {
 | `--math-input-field-font-size` | `1.25rem` | Formula size |
 | `--math-input-font-family` | `ui-monospace, …` | Placeholder and interface text |
 | `--math-input-math-font-family` | `"STIX Two Math", …` | The mathematics |
-| `--math-input-root-stroke-s` | `0.11em` | The radical over a number or a word, bar included |
-| `--math-input-root-stroke-m` | `0.15em` | The same, over a fraction |
-| `--math-input-root-stroke-l` | `0.2em` | The same, over anything deeper |
-| `--math-input-root-width-s` | `1.05em` | How far the small radical reaches before its bar begins |
-| `--math-input-root-width-m` | `1.55em` | The same, over a fraction |
-| `--math-input-root-width-l` | `2.4em` | The same, over anything deeper |
+| `--math-input-rule` | `0.062em` | Every rule the component draws: a fraction's bar, the bar over a radicand, and the radical itself. Floored at a pixel so a hairline never rounds away |
+| `--math-input-root-width` | `1.05em` | How far a radical reaches before its bar begins, over a single line of writing |
+| `--math-input-operator-space` | `0.222em` | Either side of `+` `−` `⋅` `:` where they are an operation. TeX's medium space |
+| `--math-input-relation-space` | `0.278em` | Either side of `=`. TeX's thick space |
 | `--math-input-max-width` | `48rem` | Widest the editor grows |
+
+Both radical values describe a root over *one line* of writing. A taller root is scaled from them — the stroke grows heavier and the radical reaches further, both stopping once a root is tall enough that more of either would read as a thicker mark rather than a taller one. Setting one value keeps the whole range in proportion; there is nothing to tune per size, because there are no longer three sizes.
 
 A row that outgrows its width scrolls sideways, following the caret. Its scrollbar is drawn over the field rather than inside it, so a row only ever changes height for the formula in it — never mid-word because the text got long. Dragging that bar scrolls its row and nothing else: the row you are editing keeps the focus and the caret.
 
@@ -276,14 +278,16 @@ What a browser downloads, for the component as it stands:
 
 | | Raw | Gzipped |
 | --- | --- | --- |
-| `math-input.js` (ESM) | 39.6 kB | **11.9 kB** |
-| `math-input.css` | 7.2 kB | **2.0 kB** |
+| `math-input.js` (ESM) | 39.8 kB | **13.9 kB** |
+| `math-input.css` | 8.5 kB | **2.2 kB** |
 
-About 14 kB gzipped in total, with React the only thing it expects to already be there. For comparison, KaTeX alone is an order of magnitude larger, and this is a whole editor.
+About 16 kB gzipped in total, with React the only thing it expects to already be there. It grew by 2 kB in 0.5.0, and where it went is worth knowing: rendering a row only when that row changed, and setting mathematics properly — spacing operations, italicising letters, sizing radicals to what they cover. For comparison, KaTeX alone is an order of magnitude larger, and this is a whole editor.
 
-There is nothing to tree-shake off: one entry, one component, and every module behind it is on the path from typing a key to seeing a formula. The build is already minified — forcing `minify: "esbuild"` instead of the default makes it 3% *bigger* — and `sideEffects` is declared, so a bundler is free to drop the stylesheet if you never import it.
+There is nothing to tree-shake off: one entry, one component, and every module behind it is on the path from typing a key to seeing a formula. `sideEffects` is declared, so a bundler is free to drop the stylesheet if you never import it.
 
-The npm tarball is larger than the numbers above (~107 kB) because it also carries the CommonJS build, source maps and type declarations. None of that reaches your users; bundlers take the ESM build and leave the rest.
+One note for anyone measuring their own build of this: the published ES bundle was mangled but pretty-printed until 0.5.0, which cost about 1.5 kB gzipped in whitespace. Forcing `minify: "esbuild"` really does make it 3% *bigger*, as earlier notes here said — the setting that mattered was the bundle's own output minification, which is separate from the build's.
+
+The npm tarball is larger than the numbers above (~176 kB) because it also carries the CommonJS build, source maps and type declarations. None of that reaches your users; bundlers take the ESM build and leave the rest.
 
 ## Frameworks
 
