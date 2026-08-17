@@ -117,6 +117,7 @@
 .math-input__tool,
 .math-input__remove-row,
 .math-input__new-row {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 2.5rem;
@@ -227,6 +228,23 @@
 
 .math-input__token--number {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Forty-four pixels of target on every control, which is what a finger needs, without drawing
+ * any of them forty-four pixels across. The buttons are 36–40px because that is what reads
+ * well beside a formula; the difference is made up in an overlay that is not painted.
+ */
+.math-input__tool::after,
+.math-input__remove-row::after,
+.math-input__new-row::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
 }
 
 /* Over the field, inside its bottom padding: visible, draggable, and worth no height. */

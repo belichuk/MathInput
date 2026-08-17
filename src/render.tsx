@@ -212,7 +212,11 @@ function renderNode(node: FormulaNode, path: Path, depth: number): ReactNode {
      */
     const tokens = node.value === "" ? [] : tokeniseRun(node.value, stepOf(path).index > 0);
     const whole = wholeRun(tokens);
-    return <span key={key} className={`math-input__text${tokenClass(whole)}`} data-path={key} data-blank={node.value === "" ? "" : undefined}>
+    // A blank run draws one zero-width character so the caret has somewhere with geometry to
+    // stand. It is no part of the model's text and no part of what the field says, so it is
+    // kept out of the accessibility tree — a screen reader reading an empty row should find it
+    // empty rather than find a character it cannot pronounce.
+    return <span key={key} className={`math-input__text${tokenClass(whole)}`} data-path={key} data-blank={node.value === "" ? "" : undefined} aria-hidden={node.value === "" ? true : undefined}>
       {node.value === "" ? CARET_PLACEHOLDER : whole
         ? asSet(whole.text)
         : tokens.map((token, at) => (token.kind === "plain"

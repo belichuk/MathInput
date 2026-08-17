@@ -1,4 +1,4 @@
-import { type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./MathInput.css";
 import { type FormulaNode, type SelectionRange, collapsedAt, encodePath, isBlank, samePosition } from "./model";
 import { clampPosition, rowEnd, rowStart, stepThroughSlots, stepVertically } from "./caret";
@@ -206,27 +206,80 @@ const swallow = (event: { preventDefault: () => void }) => event.preventDefault(
  * The comparison is React's own shallow one, which is exactly right here: `row` is the
  * reference the reducer either replaced or did not.
  */
+/**
+ * The toolbar, as the toolbar pattern actually asks for it: **one tab stop**, with the arrow
+ * keys moving between the buttons inside it.
+ *
+ * Eleven separate tab stops was always wrong, and `Tab` walking the slots of a formula made it
+ * worse rather than merely leaving it: `Tab` out of the last slot used to land on whatever came
+ * after the editor, and now it lands here, at the first of eleven. Somebody filling in a
+ * worksheet by keyboard would meet the whole strip between one row and the next.
+ *
+ * Its own component, and its own state, so that moving between buttons re-renders the toolbar
+ * and not the row — the row is memoised precisely so a keystroke does not redraw a formula.
+ */
+function Toolbar({ row, index, removable, shell }: { row: string; index: number; removable: boolean; shell: RowShell }) {
+  const { disabled, groups } = shell;
+  const [active, setActive] = useState(0);
+  const strip = useRef<HTMLDivElement | null>(null);
+
+  const controls = [...groups.flatMap((group) => group.tools.map((tool) => ({
+    key: tool.icon, label: tool.label, title: tool.title, icon: tool.icon, className: "math-input__tool",
+    press: () => shell.runTool(row, tool.action),
+  }))), ...(removable ? [{
+    key: "remove", label: "Remove formula row", title: "Remove", icon: "remove" as EditorIconName,
+    className: "math-input__remove-row", press: () => shell.removeRow(row),
+  }] : [])];
+
+  // The arrow keys move along the strip and wrap, `Home` and `End` jump to its ends. Focus
+  // follows, because a roving tabindex that does not move focus is only half of the pattern.
+  const steer = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1, Home: -Infinity, End: Infinity }[event.key];
+    if (step === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const at = step === -Infinity ? 0 : step === Infinity ? controls.length - 1 : (active + step + controls.length) % controls.length;
+    setActive(at);
+    strip.current?.querySelectorAll<HTMLButtonElement>("button")[at]?.focus();
+  };
+
+  let at = -1;
+  const stop = () => { at += 1; return at; };
+
+  return <div className="math-input__toolbar" role="toolbar" ref={strip} aria-label={`Formula tools for row ${index + 1}`} onKeyDown={steer}>
+    {groups.map((group, group_at) => <Fragment key={group.key}>
+      {group_at > 0 && <span className="math-input__toolbar-divider" aria-hidden="true" />}
+      <div className="math-input__tool-group" role="group" aria-label={group.label}>
+        {group.tools.map((tool) => {
+          const here = stop();
+          return <button key={tool.icon} type="button" className="math-input__tool" tabIndex={here === active ? 0 : -1} onMouseDown={swallow} onFocus={() => setActive(here)} onClick={controls[here].press} disabled={disabled} aria-label={tool.label} title={tool.title}><EditorIcon name={tool.icon} /></button>;
+        })}
+      </div>
+    </Fragment>)}
+    {removable && (() => {
+      const here = stop();
+      return <button type="button" className="math-input__remove-row" tabIndex={here === active ? 0 : -1} onMouseDown={swallow} onFocus={() => setActive(here)} onClick={controls[here].press} aria-label="Remove formula row" title="Remove"><EditorIcon name="remove" /></button>;
+    })()}
+  </div>;
+}
+
 const EditorRow = memo(function EditorRow({ row, index, removable, wearsTools, shell }: { row: Row; index: number; removable: boolean; wearsTools: boolean; shell: RowShell }) {
-  const { ariaLabel, disabled, groups, placeholder } = shell;
+  const { ariaLabel, disabled, placeholder } = shell;
   // Kept stable per row: a fresh ref callback on every render makes React detach and
   // reattach the element, and the edited row renders on every keystroke.
   const fieldRef = useCallback((element: HTMLDivElement | null) => shell.registerField(row.id, element), [shell, row.id]);
   const thumbRef = useCallback((element: HTMLDivElement | null) => shell.registerThumb(row.id, element), [shell, row.id]);
 
   return <div className="math-input__row">
-    {wearsTools && <div className="math-input__toolbar" role="toolbar" aria-label={`Formula tools for row ${index + 1}`}>
-      {groups.map((group, at) => <Fragment key={group.key}>
-        {at > 0 && <span className="math-input__toolbar-divider" aria-hidden="true" />}
-        <div className="math-input__tool-group" role="group" aria-label={group.label}>
-          {group.tools.map((tool) => <button key={tool.icon} type="button" className="math-input__tool" onMouseDown={swallow} onClick={() => shell.runTool(row.id, tool.action)} disabled={disabled} aria-label={tool.label} title={tool.title}><EditorIcon name={tool.icon} /></button>)}
-        </div>
-      </Fragment>)}
-      {removable && <button type="button" className="math-input__remove-row" onMouseDown={swallow} onClick={() => shell.removeRow(row.id)} aria-label="Remove formula row" title="Remove"><EditorIcon name="remove" /></button>}
-    </div>}
+    {wearsTools && <Toolbar row={row.id} index={index} removable={removable} shell={shell} />}
     <div
       ref={fieldRef}
       className="math-input__field"
       contentEditable={!disabled}
+      // Focusability comes from `contentEditable`, which a disabled row does not have — so
+      // without this a read-only formula drops out of the tab order altogether and cannot be
+      // reached to be read or copied.
+      tabIndex={0}
       suppressContentEditableWarning
       spellCheck={false}
       role="textbox"

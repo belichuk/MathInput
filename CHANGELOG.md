@@ -42,6 +42,11 @@ a formula is what it always was; reading one should now look like mathematics.
 
 - **`Tab` walks the boxes of a formula.** It used to pass straight through. It now moves to the next slot in the order they are drawn — open a fraction, write the numerator, `Tab`, write the denominator — landing at the start of a slot with nothing in it and the end of one already written in. **This is a change to a documented contract:** a host that relied on one `Tab` always leaving the field may now need several. With no slot left in that direction `Tab` is not taken at all and focus leaves as before, so the field is never a keyboard trap (WCAG 2.1.2), and `Esc` still leaves in one press. The set of keys the editor contains is now written out in the README as the contract it is.
 
+- **The toolbar is one tab stop, not eleven.** Which is the toolbar pattern, and which stopped being housekeeping the moment `Tab` began walking the slots of a formula: leaving the last slot lands in the toolbar, so a whole strip of buttons sat between one row of a worksheet and the next. The arrow keys move along it and wrap, `Home` and `End` jump to its ends, and focus follows.
+- **A disabled editor can still be reached by keyboard.** Focusability came from `contentEditable` alone, which a disabled row does not have — so a read-only formula dropped out of the tab order entirely and could not be reached to be read or copied.
+- **The caret's zero-width placeholder is out of the accessibility tree.** A blank slot draws one so the caret has somewhere with geometry to stand; it is no part of what the field says, and a screen reader reading an empty row should find it empty.
+- Every control has 44 pixels of touch target, without any of them being drawn 44 pixels across.
+
 ### Removed
 
 - **Six radical custom properties are two, and one of those is now about every rule.** `--math-input-rule` sets the thickness of a fraction's bar, the bar over a radicand and the radical itself; `--math-input-root-width` sets how far a radical reaches before its bar begins, over a single line of writing.
