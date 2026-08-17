@@ -156,6 +156,12 @@ const KEYED_ACTION: Record<string, Action> = {
   "=": { type: "equals" },
   "(": { type: "insertCompound", kind: "group" },
   ")": { type: "closeGroup" },
+  // The character opens the formula, the way `/` does. It is not on most keyboards, but it is
+  // on every soft one's symbol page, it survives dictation and autocorrect, and it can be
+  // pasted — which until now were the only ways to get a root without reaching for the mouse.
+  // Typing the *word* `sqrt` is token recognition and waits for 0.6.0.
+  "√": { type: "insertCompound", kind: "sqrt" },
+  "∛": { type: "insertCompound", kind: "cubeRoot" },
 };
 
 /**

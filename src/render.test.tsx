@@ -155,6 +155,19 @@ describe("the weight of a radical", () => {
     expect(second).toBeGreaterThan(first);
   });
 
+  it("hands the drawing two multipliers, which is what the two public properties are scaled by", () => {
+    const root = draw(parseLatex("\\sqrt{\\frac{1}{2}}")).querySelector<HTMLElement>(".math-input__root")!;
+    const style = root.getAttribute("style") ?? "";
+    // The stylesheet multiplies `--math-input-rule` and `--math-input-root-width` by these, so
+    // a host that sets either keeps the whole range of sizes in proportion.
+    expect(style).toContain("--_root-stroke-grow");
+    expect(style).toContain("--_root-width-grow");
+    expect(style).toContain("--_root-index-drop");
+    // A root over one line is drawn at exactly what the host set: the multipliers are 1.
+    const plain = draw(parseLatex("\\sqrt{9}")).querySelector<HTMLElement>(".math-input__root")!;
+    expect(plain.getAttribute("style")?.replace(/\s/g, "")).toContain("--_root-stroke-grow:1;");
+  });
+
   it("stops growing, because a root over a page of working is a tall radical and not a thick one", () => {
     const deep = parseLatex("\\sqrt{\\frac{\\frac{\\frac{1}{2}}{3}}{\\frac{\\frac{4}{5}}{6}}}");
     const growth = rootGrowth(radicandsIn(deep)[0]);

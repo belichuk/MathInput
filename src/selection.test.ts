@@ -351,11 +351,22 @@ describe("a minus that is drawn but not stored", () => {
   it("draws U+2212 while the model keeps the hyphen that was typed", () => {
     const { field, content } = mount("a-b");
     const run = at(field, "0");
-    // Same length, so every offset still counts the same characters.
     expect(run.textContent).toBe("a−b");
-    expect(run.textContent).toHaveLength(3);
+    // The guarantee that has to survive the drawing: the model's text is untouched, and the
+    // drawn text is the same length, so an offset still counts the same characters.
     expect(serializeToLatex(content)).toBe("a-b");
-    expect(positionFromDom(field, run.querySelector(".math-input__token--operator")!.firstChild!, 1)).toEqual(there("0", 2));
+    expect(run.textContent).toHaveLength("a-b".length);
+  });
+
+  it("keeps every offset in a run the drawing has changed", () => {
+    // Not one offset but all of them, written and read back, across a run holding a variable,
+    // a drawn minus and a number — three classes and three text nodes.
+    const { field, content } = mount("a-2b");
+    expect(serializeToLatex(content)).toBe("a-2b");
+    for (const offset of [0, 1, 2, 3, 4]) {
+      applySelection(field, { anchor: there("0", offset), focus: there("0", offset) });
+      expect(selectionFromDom(field), `offset ${offset}`).toEqual({ anchor: there("0", offset), focus: there("0", offset) });
+    }
   });
 
   it("leaves a run alone on repair rather than rewriting it every time", () => {

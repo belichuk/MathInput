@@ -110,6 +110,7 @@ The toolbar comes in three groups, divided: the formulas that have to be built �
 | `(` | Opens a bracket pair that grows to fit whatever is put in it |
 | `)` | Steps back out of the brackets it is typed in |
 | `*` | Written as `⋅` and emitted as `\cdot` |
+| `√` `∛` | Open a square root and a cube root around what follows, the way `(` opens brackets. Not on most physical keyboards, but on every soft one's symbol page — and they survive dictation, autocorrect and paste |
 | `=` | Comes out of anything that cannot hold a relation — a numerator, a radicand, an exponent — and stops at the first thing that can, so `(x=1)` stays inside its brackets |
 | `Space` | Steps past what is in front of the caret: the rest of the run, a whole formula, or the slot itself — `\sqrt{9\|}` becomes `\sqrt{9}\|` |
 | `←` `→` | Step through every slot in reading order, then out of the formula |

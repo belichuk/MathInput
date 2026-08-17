@@ -29,25 +29,28 @@ const KB = 1000;
  * a regression shows up as movement rather than as merely "under budget".
  */
 /**
- * The ceiling moved from 13.5 KB to 20 during the release, and it is worth writing down why
- * rather than leaving a number that looks arbitrary.
+ * A ratchet, not a ceiling.
  *
- * The plan set 13.5 by adding up estimated savings and additions. Two of them were wrong in
- * opposite directions — the minifier gave more than expected, the icons far less — and the
- * work that was *not* estimated at all turned out to cost the most: memoising the rows, and
- * the typography, which is a tokeniser, a script ladder, four delimiters and a continuous
- * radical rather than the single line item it was budgeted as. By the vertical arrows there
- * were 217 bytes left and six of M4's seven steps still to write.
+ * The budget is what the bundle weighs *now* plus an explicit allowance for the work the next
+ * release is known to be adding — and it is reset at every tag, to the new actual plus the new
+ * allowance. A number far above the current size is not a budget: it cannot bind, so it never
+ * says anything until the day it says everything at once.
  *
- * The documented cut order was exhausted by then: the `grid` stub was never built, the
- * tokeniser is the typography and cannot be given back, and making spoken math opt-in frees
- * nothing until spoken math exists. What was left to cut was product, and decision D-3 is
- * that behaviour wins over bytes and the number moves instead. So it moved. It is still a
- * hard gate and still fails the build — a ceiling that is never tested is not a ceiling — and
- * the `vs 0.3.7` column is what actually catches drift between one commit and the next.
+ * The history is worth keeping, because it is why this is a ratchet. The plan set 13.5 KB by
+ * adding up estimated savings and additions. Two estimates were wrong in opposite directions —
+ * the minifier gave more than promised, the icons far less — and the work that was never
+ * estimated at all cost the most: memoising the rows, and a "typography" line item that turned
+ * out to be a tokeniser, a script ladder, four delimiters and a continuous radical. The number
+ * was raised to 20 KB mid-release to unblock the work, which was the right call and the wrong
+ * number: it left six kilobytes of slack and made this gate ornamental for a fortnight.
+ *
+ * The allowance below is for what 0.5.0 still owes: the spoken-math writer, a live region, and
+ * the accessibility and API work of M6.
  */
+const ALLOWANCE = 1 * KB;
+
 const TARGETS = [
-  { file: "dist/math-input.js", label: "ESM bundle", budget: 20 * KB, baseline: 12_951 },
+  { file: "dist/math-input.js", label: "ESM bundle", budget: 14 * KB + ALLOWANCE, baseline: 12_951 },
   // Reported, never gated: no browser loads the CommonJS build, and it exists for
   // bundlers that still ask for one. It is here because it is the more honest account of
   // how much code there really is — the ESM emit is the pretty-printed one.
