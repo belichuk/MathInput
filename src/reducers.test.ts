@@ -98,8 +98,12 @@ describe("the / key", () => {
     expect(sketch(apply(rowOf("12+34", top(0, 2)), { type: "divide" }))).toBe("\\frac{12}{|}+34");
   });
 
-  it("replaces a selection with an empty fraction", () => {
-    expect(sketch(apply(rowSelecting("123", top(0, 0), top(0, 3)), { type: "divide" }))).toBe("\\frac{|}{}");
+  it("makes a selection the numerator and waits in the denominator", () => {
+    // This replaced the selection with an empty fraction until 0.5.0. Selecting what the
+    // fraction is *of* and pressing `/` is the obvious way to write one, and it was the one
+    // way that threw the selection away.
+    expect(sketch(apply(rowSelecting("123", top(0, 0), top(0, 3)), { type: "divide" }))).toBe("\\frac{123}{|}");
+    expect(sketch(apply(rowSelecting("1+23", top(0, 0), top(0, 2)), { type: "divide" }))).toBe("\\frac{1+}{|}23");
   });
 });
 
@@ -148,8 +152,22 @@ describe("toolbar insertion", () => {
     expect(sketch(apply(rowOf("\\sqrt{2}", top(2, 0)), insert("power")))).toBe("\\sqrt{2}^{|}");
   });
 
-  it("deletes the selection and inserts an empty formula, rather than wrapping it", () => {
-    expect(sketch(apply(rowSelecting("123", top(0, 0), top(0, 3)), insert("sqrt")))).toBe("\\sqrt{|}");
+  it("writes a formula around the selection rather than over it", () => {
+    // Also a deliberate change of meaning in 0.5.0: a tool used to delete what was selected.
+    expect(sketch(apply(rowSelecting("123", top(0, 0), top(0, 3)), insert("sqrt")))).toBe("\\sqrt{123|}");
+    // The caret goes to the first slot still waiting to be written, which for a root that
+    // already holds its radicand is the end of the radicand and for a power is the exponent.
+    expect(sketch(apply(rowSelecting("123", top(0, 0), top(0, 3)), insert("power")))).toBe("123^{|}");
+    expect(sketch(apply(rowSelecting("123", top(0, 0), top(0, 3)), insert("frac")))).toBe("\\frac{123}{|}");
+    expect(sketch(apply(rowSelecting("123", top(0, 0), top(0, 3)), insert("group")))).toBe("\\left(123|\\right)");
+  });
+
+  it("still replaces a selection it cannot write around", () => {
+    // From inside a fraction to outside it there is no single thing to wrap — half a fraction
+    // is not a term — so the selection is deleted and an empty formula inserted, which is what
+    // every selection used to get. The root comes out empty, which is the point of the test.
+    const across = rowSelecting("\\frac{1}{2}x", inside(1, "numerator", 0, 0), top(2, 1));
+    expect(sketch(apply(across, insert("sqrt")))).toBe("\\frac{\\sqrt{|}}{}");
   });
 
   it("inserts at the caret inside a slot", () => {
@@ -398,5 +416,30 @@ describe("pasting", () => {
     for (const pasted of ["\\frac{1}{2}", "x^{2}_", "\\left(9\\right)", "\\sqrt{", "}}{{", ""]) {
       expect(isNormalized(reduce(rowOf("ab", top(0, 1)), { type: "paste", text: pasted }).content), pasted).toBe(true);
     }
+  });
+});
+
+describe("where an = goes", () => {
+  const equals: Action = { type: "equals" };
+
+  it("comes out of anything that cannot hold a relation", () => {
+    // `\frac{x=1}{2}` is not a sentence, so the `=` leaves the fraction.
+    expect(sketch(apply(rowOf("\\frac{x}{2}", inside(1, "numerator", 0, 1)), equals))).toBe("\\frac{x}{2}=|");
+    expect(sketch(apply(rowOf("\\sqrt{9}", inside(1, "content", 0, 1)), equals))).toBe("\\sqrt{9}=|");
+    expect(sketch(apply(rowOf("x^{2}", inside(1, "exponent", 0, 1)), equals))).toBe("x^{2}=|");
+  });
+
+  it("stays inside brackets, which can", () => {
+    // `(x=1)` is a sentence. Until 0.5.0 this came out to the row and wrote `\left(x\right)=`.
+    expect(sketch(apply(rowOf("\\left(x\\right)", inside(1, "content", 0, 1)), equals))).toBe("\\left(x=|\\right)");
+  });
+
+  it("stops at the innermost thing that can hold it, however deep", () => {
+    const state = rowOf("\\frac{\\left(x\\right)}{2}", at([{ index: 1, branch: "numerator" }, { index: 1, branch: "content" }, { index: 0 }], 1));
+    expect(sketch(apply(state, equals))).toBe("\\frac{\\left(x=|\\right)}{2}");
+  });
+
+  it("is written where it is typed when nothing encloses it", () => {
+    expect(sketch(apply(rowOf("x", top(0, 1)), equals))).toBe("x=|");
   });
 });

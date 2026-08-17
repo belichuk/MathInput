@@ -119,6 +119,13 @@ export type ConstructSpec<K extends ConstructKind> = {
   write: (node: NodeOf<K>, latex: (nodes: FormulaNode[]) => string) => string;
   /** A character that steps the caret out of it from inside, rather than being written. */
   closedBy?: string;
+  /**
+   * Whether a relation may be written inside it. `(x=1)` is a sentence and `\\frac{x=1}{2}` is
+   * not, so `=` typed in a numerator comes out of the fraction and `=` typed in brackets stays
+   * where it was typed. Settled now rather than when inequalities ship, because a construct
+   * that has already decided this cannot change its mind without breaking what users wrote.
+   */
+  relationContainer?: true;
 };
 
 /**
@@ -140,6 +147,7 @@ export type AnySpec = {
   lines: (node: CompoundNode, linesIn: (nodes: FormulaNode[]) => number) => number;
   write: (node: CompoundNode, latex: (nodes: FormulaNode[]) => string) => string;
   closedBy?: string;
+  relationContainer?: true;
 };
 
 /** Keeps each row checked against its own kind instead of against the union of all of them. */
@@ -193,6 +201,7 @@ export const CONSTRUCTS = {
     write: (node, latex) => `\\left(${latex(node.content)}\\right)`,
     // `)` typed inside brackets leaves them rather than adding a stray one.
     closedBy: ")",
+    relationContainer: true,
   }),
 } satisfies { [K in ConstructKind]: ConstructSpec<K> };
 

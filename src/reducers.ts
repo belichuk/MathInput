@@ -1,7 +1,7 @@
 import {
   type BranchKey, type CaretPosition, type CompoundNode, type FormulaNode, type Path, type SelectionRange,
-  arrayPathOf, branchKeys, branchOf, buildConstruct, collapsedAt, emptyContent, enclosingNodePath, isCollapsed, isCompound, isShallowEmpty, isText,
-  isBlank, LEADING_TERM, nextBoundary, normalize, orderedRange, previousBoundary, resolve, resolveArray, resolveNode, slotPath, stepOf, text, textAt, TIMES, TRAILING_TERM, updateArray, withBranch,
+  arrayPathOf, branchesOf, branchKeys, branchOf, buildConstruct, collapsedAt, emptyContent, enclosingNodePath, isCollapsed, isCompound, isShallowEmpty, isText,
+  isBlank, LEADING_TERM, nextBoundary, normalize, orderedRange, previousBoundary, resolve, resolveArray, resolveNode, samePath, slotPath, stepOf, text, textAt, TIMES, TRAILING_TERM, updateArray, withBranch,
 } from "./model";
 import { type AnyInsertion, type InsertKind, KEY_INSERTIONS, TOOL_INSERTIONS, specFor, specOf } from "./registry";
 import { cleanFormulaText, parseLatex } from "./parse";
@@ -237,20 +237,63 @@ function insertNodesAt(content: FormulaNode[], caret: CaretPosition, nodes: Form
   };
 }
 
+/**
+ * A selection, taken out whole so a construct can be written around it.
+ *
+ * Only when it lies inside one array, which is the case worth having: `x+1` selected in a row
+ * and `/` pressed. A selection running from inside a fraction to somewhere outside it has no
+ * single thing to wrap — half a fraction is not a term — and those are replaced as they always
+ * were rather than guessed at.
+ */
+function selectedTerm(state: RowState): { caret: CaretPosition; capture: Capture } | null {
+  const { start, end } = orderedRange(state.content, state.selection);
+  const arrayPath = arrayPathOf(start.path);
+  if (!samePath(arrayPath, arrayPathOf(end.path))) return null;
+  const array = resolveArray(state.content, arrayPath);
+  const from = stepOf(start.path).index;
+  const to = stepOf(end.path).index;
+  if (!array || !isText(array[from]) || !isText(array[to])) return null;
+  const head = valueOf(array[from]);
+  const tail = valueOf(array[to]);
+  const term = from === to
+    ? [text(head.slice(start.offset, end.offset))]
+    : normalize([text(head.slice(start.offset)), ...array.slice(from + 1, to), text(tail.slice(0, end.offset))]);
+  if (isBlank(term)) return null;
+  return {
+    caret: { path: [...arrayPath, { index: from }], offset: start.offset },
+    capture: {
+      array: [...array.slice(0, from), text(head.slice(0, start.offset) + tail.slice(end.offset)), ...array.slice(to + 1)],
+      index: from,
+      offset: start.offset,
+      term,
+    },
+  };
+}
+
 /** `caretWithoutTerm` is where the caret goes when there was no term to capture: `/` with nothing in front of it opens an empty fraction to fill in from the top. */
 function insertCompound(state: RowState, insertion: AnyInsertion): RowState {
-  const { content, caret } = takeSelection(state);
+  // What is selected is what the construct is written around, whether or not the trigger would
+  // have adopted anything on its own: selecting `x+1` and pressing `/` makes it the numerator.
+  const wrapping = isCollapsed(state.selection) ? null : selectedTerm(state);
+  const { content, caret } = wrapping ? { content: state.content, caret: wrapping.caret } : takeSelection(state);
   const target = resolve(content, caret.path);
   if (!target || !isText(target.array[target.index])) return state;
-  const captured = insertion.adopts
+  const captured = wrapping?.capture ?? (insertion.adopts
     ? takePrecedingTerm(target.array, target.index, caret.offset)
-    : { array: target.array, index: target.index, offset: caret.offset, term: emptyContent() };
-  const caretBranch: BranchKey = isBlank(captured.term) ? insertion.caretWithoutTerm ?? insertion.caret : insertion.caret;
+    : { array: target.array, index: target.index, offset: caret.offset, term: emptyContent() });
+  const node = buildNode({ ...insertion, adopts: wrapping ? true : insertion.adopts }, captured.term);
+  // Around a selection the caret goes to the first slot still waiting to be written, which is
+  // what a tool does anyway; otherwise the trigger's row says where.
+  const caretBranch: BranchKey = wrapping
+    ? branchesOf(node).find((branch) => isBlank(branch.nodes))?.key ?? insertion.caret
+    : isBlank(captured.term) ? insertion.caretWithoutTerm ?? insertion.caret : insertion.caret;
   // The slot the caret is about to land in takes whatever is written directly in front of
   // it, so brackets, a root or a fraction opened before a term wrap that term rather than
-  // pushing it aside — and the caret waits at the end of it, still inside the new slot.
-  const wrapped = takeFollowingTerm(captured.array, captured.index, captured.offset);
-  const node = buildNode(insertion, captured.term);
+  // pushing it aside — and the caret waits at the end of it, still inside the new slot. A
+  // construct written around a selection takes nothing further: the selection said what.
+  const wrapped = wrapping
+    ? { array: captured.array, index: captured.index, offset: captured.offset, term: emptyContent() }
+    : takeFollowingTerm(captured.array, captured.index, captured.offset);
   const value = valueOf(wrapped.array[wrapped.index]);
   const arrayPath = arrayPathOf(caret.path);
   const array = [
@@ -263,7 +306,27 @@ function insertCompound(state: RowState, insertion: AnyInsertion): RowState {
   const nodePath: Path = [...arrayPath, { index: wrapped.index + 1 }];
   const next = updateArray(content, arrayPath, () => array);
   const slot = slotPath(nodePath, caretBranch);
-  return { content: next, selection: collapsedAt(isBlank(wrapped.term) ? startOfArray(slot) : endOfArray(next, slot)) };
+  // At the start of a slot that is empty, at the end of one that is not.
+  return { content: next, selection: collapsedAt(isBlank(resolveArray(next, slot) ?? []) ? startOfArray(slot) : endOfArray(next, slot)) };
+}
+
+/**
+ * Where a relation belongs, which is not always where it was typed.
+ *
+ * `=` separates whole statements, so typed inside something that cannot hold one it comes out
+ * of it — a numerator, a radicand, an exponent. It stops at the first construct that *can*
+ * hold one, so `=` typed between brackets stays between them, and at the row when nothing can.
+ * Which constructs can is declared per construct rather than being a list kept here.
+ */
+function relationPosition(content: FormulaNode[], caret: CaretPosition): CaretPosition {
+  let position = caret;
+  for (let guard = 0; guard < 64; guard += 1) {
+    const nodePath = enclosingNodePath(position.path);
+    const node = nodePath ? resolveNode(content, nodePath) : null;
+    if (!nodePath || !isCompound(node) || specFor(node).relationContainer) return position;
+    position = positionAfterNode(nodePath);
+  }
+  return position;
 }
 
 // ---------------------------------------------------------------------------
@@ -347,13 +410,9 @@ export function reduce(state: RowState, action: Action): RowState {
     case "divide": return insertCompound(state, KEY_INSERTIONS.divide);
     case "script": return insertCompound(state, KEY_INSERTIONS[action.kind]);
     case "equals": {
-      // `=` separates whole formulas, so it is written between them: typed anywhere
-      // inside one, however deep, it comes out to the row and lands after the whole
-      // thing. The first step of a caret's path names the formula it is somewhere in.
-      const path = state.selection.focus.path;
-      if (isCollapsed(state.selection) && path.length > 1) return insertTextAt(state.content, positionAfterNode([{ index: path[0].index }]), "=");
+      const collapsed = isCollapsed(state.selection);
       const { content, caret } = takeSelection(state);
-      return insertTextAt(content, caret, "=");
+      return insertTextAt(content, collapsed ? relationPosition(content, caret) : caret, "=");
     }
     case "closeGroup": {
       // The last reducer that named a construct. It asks the registry which construct this
