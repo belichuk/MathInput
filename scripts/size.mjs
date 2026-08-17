@@ -44,13 +44,20 @@ const KB = 1000;
  * was raised to 20 KB mid-release to unblock the work, which was the right call and the wrong
  * number: it left six kilobytes of slack and made this gate ornamental for a fortnight.
  *
- * The allowance below is for what 0.5.0 still owes: the spoken-math writer, a live region, and
- * the accessibility and API work of M6.
+ * Reset at 0.5.0, and the arithmetic of the previous reset is worth keeping. That allowance was
+ * 1 KB, for the spoken-math writer, a live region and M6's API work. Spoken math and the live
+ * region came to 672 B — the plan's estimate was 0.70 KB, which is as close as an estimate gets
+ * — and the toolbar prop with its deprecation seam came to 374 B. Together 1,046 B against an
+ * allowance of 1,000. The number was 46 bytes wrong and the gate said so, which is the whole
+ * argument for a ratchet over a ceiling: a 20 KB budget would have said nothing at all.
+ *
+ * The allowance below is for 0.6.0, whose known work is token recognition, the opnames, `abs`,
+ * the Greek letters and the relations of M5, and row split and merge.
  */
-const ALLOWANCE = 1 * KB;
+const ALLOWANCE = 0.3 * KB;
 
 const TARGETS = [
-  { file: "dist/math-input.js", label: "ESM bundle", budget: 14 * KB + ALLOWANCE, baseline: 12_951 },
+  { file: "dist/math-input.js", label: "ESM bundle", budget: 15.3 * KB + ALLOWANCE, baseline: 12_951 },
   // Reported, never gated: no browser loads the CommonJS build, and it exists for
   // bundlers that still ask for one. It is here because it is the more honest account of
   // how much code there really is — the ESM emit is the pretty-printed one.

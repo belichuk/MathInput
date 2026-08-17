@@ -6,6 +6,7 @@ import { type Action, type CompoundKind, type RowState, reduce } from "./reducer
 import { parseLatex } from "./parse";
 import { serializeToLatex } from "./serialize";
 import { renderNodes } from "./render";
+import { slotAt, speakRow } from "./speech";
 import { applySelection, caretScrollOffset, positionFromPoint, repairField, selectionFromDom } from "./selection";
 import { type History, emptyHistory, record, redo, undo } from "./history";
 
@@ -375,7 +376,17 @@ const EditorRow = memo(function EditorRow({ row, index, removable, wearsTools, s
       onCompositionEnd={(event) => shell.endComposition(row.id, event.currentTarget, event.data)}
       onPaste={(event) => { event.preventDefault(); shell.paste(row.id, event.clipboardData.getData("text")); }}
       onMouseDown={(event) => shell.pickPosition(row.id, event)}
+      aria-describedby={`said-${row.id}`}
     >{renderNodes(row.content)}</div>
+    {/*
+      * The formula in words, which is the only form of it a screen reader can say.
+      *
+      * What is in the field is `1`, `2`, `x` in boxes: the structure that makes them a fraction
+      * raised to a power is *drawn*, and a drawing reads as nothing at all. So the row carries a
+      * description written from the tree — see `speech.ts` — and a reader gives it after the
+      * row's name, when focus arrives, rather than on every keystroke.
+      */}
+    <span id={`said-${row.id}`} className="math-input__visually-hidden">{speakRow(row.content)}</span>
     <div className="math-input__scrollbar" aria-hidden="true">
       <div
         className="math-input__scrollbar-thumb"
@@ -885,6 +896,12 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
   );
   useEffect(() => warnOfRenamedProps({ autoHideToolbar, showOperators, showNavigation }), [autoHideToolbar, showOperators, showNavigation]);
 
+  const spokenCaret = useMemo(() => {
+    if (!state.caret) return "";
+    const row = state.rows.find((candidate) => candidate.id === state.caret?.rowId);
+    return (row && slotAt(row.content, state.caret.range.focus.path)) ?? "";
+  }, [state.caret, state.rows]);
+
   // Which row wears the tools: the focused one, or — when they are pinned — the row the
   // caret last sat in, falling back to the first so a fresh editor still shows them.
   const toolbarRowId = useMemo(() => {
@@ -929,6 +946,17 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
   return <div className={`math-input ${className}`.trim()} style={style}>
     <div className="math-input__frame" ref={frame} aria-labelledby={labelId}>
       <span id={labelId} className="math-input__visually-hidden">{ariaLabel}</span>
+      {/*
+        * Where the caret has arrived, said once when it gets there.
+        *
+        * Moving into a denominator is a move a sighted user sees and nobody else is told about:
+        * the caret is drawn somewhere new and the field's value has not changed, so a reader has
+        * nothing to announce. This says it — and says it only on the change, because React writes
+        * nothing when the text is the same and an unchanged live region announces nothing.
+        *
+        * Read from the selection in the *model*: no geometry, no measurement, invariant 4.
+        */}
+      <div className="math-input__visually-hidden" aria-live="polite" aria-atomic="true">{spokenCaret}</div>
       {state.rows.map((row, index) =>
         <EditorRow key={row.id} row={row} index={index} removable={state.rows.length > 1} wearsTools={toolbarRowId === row.id} shell={shell} />)}
     </div>

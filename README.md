@@ -74,7 +74,7 @@ One prop describes the whole strip. Every key is optional and every default is o
 <MathInput toolbar={false} />                             // no tools at all
 ```
 
-`toolbar={false}` removes the strip and its tab stop. It also removes the remove-row control, which lives in it — so on a multi-row editor there is then no way to delete a row, since `Backspace` does not yet merge one into the row above. That is a limitation of this release rather than a property of the prop; until it is lifted, pair `toolbar={false}` with a single-row field.
+`toolbar={false}` removes the strip and its tab stop. It also removes the two row controls, which live in it: `Enter` still adds a row, but nothing removes one, since `Backspace` does not yet merge a row into the row above. That is a limitation of this release rather than a property of the prop; until it is lifted, pair `toolbar={false}` with a single-row field.
 
 > **Renamed in 0.5.0.** `autoHideToolbar`, `showOperators` and `showNavigation` still work and still do exactly what they did; each warns once, in development, naming what to write instead. They go in 0.7.0. [MIGRATING-0.5.0.md](MIGRATING-0.5.0.md) has the codemod.
 
@@ -340,7 +340,13 @@ The editor is a `textbox` per row, named from `aria-label` (`"Math editor, row 2
 
 **`Tab` changed in 0.5.0.** It used to pass straight through, moving focus the way it does anywhere else. It now walks the *slots* of the formula in the order they are drawn — which is what filling one in without a mouse actually needs: open a fraction, write the numerator, `Tab`, write the denominator. When there is no slot left in that direction it is not taken at all and focus leaves the field as before, so the field is never a keyboard trap (WCAG 2.1.2). A host that relied on a single `Tab` always leaving a field should know that it may now take several, and `Esc` still leaves in one.
 
-Every tool is a real button with a label and a title, and the slot the caret is in is marked while you write in it, so a formula several boxes deep says which box is being filled. What the editor does not yet do is announce the formula's structure to a screen reader beyond the text it contains.
+Every tool is a real button with a label and a title, and the slot the caret is in is marked while you write in it, so a formula several boxes deep says which box is being filled. The toolbar is one tab stop with the arrow keys moving inside it, which is the pattern `role="toolbar"` asks for, and a `disabled` field keeps its place in the tab order so a submitted answer can still be reached, read and copied.
+
+**The formula is described in words.** What is in the DOM is `1`, `2`, `x` in boxes; the structure that makes them a fraction raised to a power is *drawn*, and a drawing reads as nothing. So each row carries a description written from the tree — `\frac{1}{2}x^{2}=\sqrt{16}` is read as *"the fraction 1 over 2, end fraction x squared equals the square root of 16, end root"* — and moving the caret into a slot is announced politely as *"in the denominator"*, because the caret moving somewhere new is a fact a sighted user gets from the drawing and nobody else was told.
+
+Two limits worth stating. It is a plain reading and not MathSpeak or any other standard, so it will not match what a reader announces for KaTeX output elsewhere on the page. And it is English: the strings are all in one module, and a locale option is the change that would let a host replace them, which is not in this release.
+
+The zero-width character the caret needs in an empty slot is hidden from the accessibility tree — but it is still a character in the DOM, so it comes along when a formula is copied with the browser's own copy. That is unchanged from earlier versions and is worth knowing if you compare copied text byte for byte.
 
 ## Keyboard policy
 

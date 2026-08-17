@@ -85,6 +85,41 @@ describe("what a screen reader is given", () => {
   });
 });
 
+/**
+ * The two things a reader is given that a sighted user gets from the drawing: what the formula
+ * says, and where the caret has just arrived.
+ */
+describe("what a formula sounds like", () => {
+  const describing = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>(".math-input__field")]
+    .map((field) => document.getElementById(field.getAttribute("aria-describedby")!)?.textContent);
+
+  it("describes each row in words, since the structure is drawn and a drawing reads as nothing", () => {
+    expect(describing(render(<MathInput defaultValue={"\\frac{1}{2}x^{2}=\\sqrt{16}\nx=4"} />)))
+      .toEqual(["the fraction 1 over 2, end fraction x squared equals the square root of 16, end root", "x equals 4"]);
+  });
+
+  it("says an empty row is empty rather than describing it as nothing at all", () => {
+    expect(describing(render(<MathInput />))).toEqual(["empty"]);
+  });
+
+  it("announces the slot the caret moves into, politely and only when it changes", () => {
+    const host = render(<MathInput defaultValue="\\frac{1}{2}" />);
+    const region = host.querySelector<HTMLElement>("[aria-live]")!;
+    expect(region.getAttribute("aria-live")).toBe("polite");
+    // Nothing has moved yet, so there is nothing to say.
+    expect(region.textContent).toBe("");
+
+    const field = host.querySelector<HTMLElement>(".math-input__field")!;
+    Object.defineProperty(document, "activeElement", { configurable: true, get: () => field });
+    act(() => { field.dispatchEvent(new FocusEvent("focusin", { bubbles: true })); });
+    act(() => { field.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true, cancelable: true })); });
+    act(() => { field.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })); });
+    expect(region.textContent).toBe("in the numerator");
+    act(() => { field.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })); });
+    expect(region.textContent).toBe("in the denominator");
+  });
+});
+
 describe("a disabled editor", () => {
   it("can still be reached by keyboard, to be read and copied", () => {
     const host = render(<MathInput defaultValue="x^{2}" disabled />);
