@@ -131,19 +131,27 @@ function nearestPosition(field: HTMLElement, x: number, y: number): CaretPositio
 }
 
 /**
- * A preventDefault'd, programmatically placed caret does not get the browser's free
- * "scroll the caret into view" that a real input event would, so the field does it itself.
+ * How far the field would have to scroll to bring the caret into view, and zero when it is
+ * already there. A preventDefault'd, programmatically placed caret does not get the
+ * browser's free "scroll the caret into view" that a real input event would, so the field
+ * does it itself.
+ *
+ * Measured and returned rather than measured and applied. The caller reads the whole page
+ * before it writes any of it, and a function that scrolled the field here would be a write
+ * in the middle of that reading — which costs a second layout, and would leave the row's
+ * scroll indicator drawn from a scroll position one frame out of date.
  */
-export function scrollCaretIntoView(field: HTMLElement): void {
+export function caretScrollOffset(field: HTMLElement): number {
   const current = window.getSelection();
-  if (!current?.rangeCount) return;
+  if (!current?.rangeCount) return 0;
   const caret = current.getRangeAt(0).getBoundingClientRect();
-  if (caret.height === 0 && caret.width === 0) return;
+  if (caret.height === 0 && caret.width === 0) return 0;
   const bounds = field.getBoundingClientRect();
   const rightMargin = 56; // clears the new-row button and the field's fade-out mask
   const leftMargin = 16;
-  if (caret.right > bounds.right - rightMargin) field.scrollLeft += caret.right - bounds.right + rightMargin;
-  else if (caret.left < bounds.left + leftMargin) field.scrollLeft -= bounds.left + leftMargin - caret.left;
+  if (caret.right > bounds.right - rightMargin) return caret.right - bounds.right + rightMargin;
+  if (caret.left < bounds.left + leftMargin) return caret.left - bounds.left - leftMargin;
+  return 0;
 }
 
 /**

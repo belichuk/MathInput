@@ -39,6 +39,10 @@ jobs:
       - name: Build the package
         run: npm run build
 
+      # Budgets, not notes: a bundle over one fails here rather than being noticed later.
+      - name: Bundle size
+        run: npm run size
+
       # Not shipped, but it is the first thing anyone sees, so it should not be broken.
       - name: Build the demo
         run: npm run build:demo

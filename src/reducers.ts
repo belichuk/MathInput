@@ -1,7 +1,7 @@
 import {
   type BranchKey, type CaretPosition, type CompoundNode, type FormulaNode, type Path, type SelectionRange,
   arrayPathOf, branchKeys, branchOf, collapsedAt, emptyContent, enclosingNodePath, frac, group, isCollapsed, isCompound, isShallowEmpty, isText,
-  isBlank, nextBoundary, normalize, orderedRange, power, previousBoundary, resolve, resolveArray, resolveNode, slotPath, sqrt, stepOf, subscript, text, textAt, TIMES, updateArray, withBranch,
+  isBlank, LEADING_TERM, nextBoundary, normalize, orderedRange, power, previousBoundary, resolve, resolveArray, resolveNode, slotPath, sqrt, stepOf, subscript, text, textAt, TIMES, TRAILING_TERM, updateArray, withBranch,
 } from "./model";
 import { cleanFormulaText, parseLatex } from "./parse";
 import { endOfArray, exitBackward, exitForward, nextPosition, positionAfterNode, previousPosition, rowEnd, rowStart, skipForward, startOfArray } from "./caret";
@@ -158,10 +158,6 @@ function replacesSign(content: FormulaNode[], caret: CaretPosition, value: strin
   return node !== null && caret.offset > 0 && isSign(node.value[caret.offset - 1]);
 }
 
-/** What `/`, `^` and `_` swallow: the run of term characters behind the caret, or the whole formula behind it. */
-const TRAILING_TERM = /[A-Za-z0-9.,]+$/;
-/** The same, read forwards: what a formula opened in front of written work wraps. */
-const LEADING_TERM = /^[A-Za-z0-9.,]+/;
 type Capture = { array: FormulaNode[]; index: number; offset: number; term: FormulaNode[] };
 
 function takePrecedingTerm(array: FormulaNode[], index: number, offset: number): Capture {

@@ -16,7 +16,6 @@ export type GroupNode = { type: "group"; content: FormulaNode[] };
 export type CompoundNode = SqrtNode | FracNode | PowerNode | SubscriptNode | GroupNode;
 export type FormulaNode = TextNode | CompoundNode;
 export type NodeKind = FormulaNode["type"];
-export type Row = { id: string; content: FormulaNode[] };
 
 export type BranchKey = "content" | "index" | "numerator" | "denominator" | "base" | "exponent" | "subscript";
 export type Branch = { key: BranchKey; nodes: FormulaNode[] };
@@ -28,6 +27,23 @@ export type SelectionRange = { anchor: CaretPosition; focus: CaretPosition };
 
 /** Multiplication as it is stored and shown: a dot, `\cdot`, never a cross. */
 export const TIMES = "⋅";
+
+/**
+ * What counts as a term — the run of characters a construct written against existing work
+ * takes with it. `/`, `^` and `_` swallow the term behind the caret; a bracket opened in
+ * front of written work wraps the one ahead of it.
+ *
+ * One rule read in both directions, and stated here because it was stated twice: the parser
+ * applied it to a token stream and the reducer to a caret, in identical copies that could
+ * drift. Two independent implementations of the adoption rule is one more than the number of
+ * adoption rules there is meant to be — and it means `x^2` typed and `x^{2}` pasted can only
+ * ever agree by coincidence.
+ *
+ * Neither is global or sticky, so neither carries a `lastIndex` and one instance is safely
+ * shared by every caller.
+ */
+export const TRAILING_TERM = /[A-Za-z0-9.,]+$/;
+export const LEADING_TERM = /^[A-Za-z0-9.,]+/;
 
 export const text = (value = ""): TextNode => ({ type: "text", value });
 export const emptyContent = (): FormulaNode[] => [text()];

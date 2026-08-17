@@ -1,0 +1,181 @@
+/*
+ * The reference page. Deliberately plain: anything decorative here competes with the one
+ * thing the page exists to show, which is the difference between two settings of the same
+ * expression.
+ */
+
+:root {
+  color: #1f2c46;
+  background: #f6f8fb;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; }
+
+input,
+select { font: inherit; }
+
+.reference {
+  max-width: 84rem;
+  padding: clamp(1.25rem, 4vw, 3.5rem);
+  margin: 0 auto;
+}
+
+.reference__header { max-width: 46rem; }
+
+.reference__eyebrow {
+  margin: 0 0 0.25rem;
+  color: #7488a6;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reference h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  line-height: 1.1;
+}
+
+.reference__lede {
+  margin: 0;
+  color: #495b78;
+  line-height: 1.6;
+}
+
+.reference__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  padding: 1rem 1.25rem;
+  margin: 1.75rem 0 0;
+  background: #fff;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+}
+
+.reference__control {
+  display: flex;
+  gap: 0.625rem;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.reference__control > span { color: #58698a; }
+
+.reference__control output {
+  min-width: 3.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reference__control--switch { cursor: pointer; }
+
+.reference__section { margin-top: clamp(2rem, 5vw, 3.5rem); }
+
+.reference h2 {
+  margin: 0 0 0.375rem;
+  font-size: 1.25rem;
+}
+
+.reference__note {
+  max-width: 52rem;
+  margin: 0 0 1.25rem;
+  color: #6a7c99;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.reference__table {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+}
+
+/*
+ * One grid per row rather than one for the table, so a tall formula takes the height it
+ * needs without stretching the rows around it — and the three columns still line up,
+ * because every row is given the same template.
+ */
+.reference__row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 22rem) 1fr 1fr;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 0.875rem 1.25rem;
+  border-top: 1px solid #eef2f7;
+}
+
+.reference--overlaid .reference__row { grid-template-columns: minmax(12rem, 22rem) 1fr; }
+
+.reference__row:first-child { border-top: 0; }
+
+.reference__row--head {
+  padding-block: 0.625rem;
+  color: #8094b2;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: #fafcfe;
+}
+
+.reference__source {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow-wrap: anywhere;
+  color: #4c5e7d;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+/* A formula the editor reads and writes back differently — worth seeing, never expected. */
+.reference__drift { color: #b4462f; }
+
+.reference__cell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.reference__katex {
+  font-size: var(--reference-font-size);
+  line-height: 1.2;
+}
+
+/* The editor with its chrome taken off: what is left beside the reference is the formula. */
+.reference .math-input {
+  --math-input-border-width: 0;
+  --math-input-radius: 0;
+  --math-input-field-padding: 0;
+  --math-input-field-min-height: 0;
+  --math-input-surface: transparent;
+
+  max-width: none;
+}
+
+.reference .math-input__field { overflow: visible; }
+
+/* Both settings in one cell, in the same place, so a difference of a pixel is visible. */
+.reference__stack {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.reference__overlay {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  color: #d4351c;
+  opacity: 0.6;
+  transform: translateY(-50%);
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}

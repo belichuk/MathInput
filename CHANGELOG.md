@@ -2,6 +2,29 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
+## Unreleased
+
+Work in hand for the next release. The release workflow takes a version's notes out of this
+file and refuses to publish a version that has none, so this section exists from the first
+commit of a release rather than being written at the end of it.
+
+Nothing below changes what the editor does. Every one of the 154 tests that existed before it
+still passes, unmodified, and that is the point: this is the field getting smaller and very
+much faster while writing a formula stays exactly as it was.
+
+### Changed
+
+- **A keystroke costs the browser one layout instead of three, and the same one whether the editor holds one row or fifty.** The caret and the ornaments were drawn by two effects that between them read the page, wrote it, and read it again — and the scroll indicator was redrawn for *every* row on an edit that could only have changed one, asking each of them for its width three times over. They are one pass now, which reads everything it needs and then writes everything it has to: 11 layout reads in 1 forced layout, against 15 in 3 for a one-row field and 358 in 52 for a fifty-row one. Rows that change size for reasons other than editing are still followed, by the resize observer, which is where that belongs.
+- **A keystroke in a fifty-row worksheet is roughly eight times faster.** Two things were doing work proportional to the whole document for an edit that was proportional to nothing. Each row is now a memoised component, so an edit re-renders the row it touched and leaves the rest alone — the dividend the immutable tree has always been paying and never collecting. And the LaTeX handed to `onChange` is remembered against the tree that produced it, so rewriting a document means rewriting the path that changed rather than every row in it.
+- **1.2 KB smaller, gzipped.** The published ES bundle was minified but *pretty-printed* — 1,508 lines of it, a fifth of the file — because a bundle's own output setting is separate from the build's, and only the latter had been raised. Worth recording that the 0.3.3 notes were right that forcing esbuild makes the file 3% *larger*; the observation was sound and only the conclusion drawn from it was wrong. The fraction icon is now drawn from the bar and rings the other icons already use rather than from a 494-byte outline of the same picture, and the icon table is built once instead of once per button per render.
+
+### Added
+
+- Measurement, as a gate rather than a note. `npm run size` prints what each artefact weighs against a budget and fails over it, and it fails too if the package ever acquires a runtime dependency or if anything belonging to the demo — KaTeX, which the reference page below uses — finds its way into the bundle. CI runs it on every commit.
+- `npm run bench`, which counts what a keystroke costs in layout rather than timing it: the accessors the code reads the page through are wrapped and counted in order, so *reads after a write* — the ones a browser has to lay the page out again to answer — are counted separately from reads that are free. The number is exact, identical on every machine, and asserted in the ordinary test suite over three fixtures: a two-character answer, a fifty-row worksheet, and one row eight constructs deep.
+- A typography reference page in the demo, `katex-reference.html`: 36 expressions drawn by the component beside the same LaTeX set by KaTeX, with a control that superimposes the two so a difference of a pixel is visible. KaTeX is a devDependency of the demo and nothing else.
+- Tests for the DOM bridge, which had none — the seam the whole editor rests on, and the one place a mistake is invisible from either side.
+
 ## 0.3.7 — 2026-08-16
 
 Roots. The radical was one drawing at one size, ruled over whatever it was given;

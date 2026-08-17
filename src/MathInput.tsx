@@ -1,4 +1,4 @@
-import { type CompositionEvent as ReactCompositionEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./MathInput.css";
 import { type FormulaNode, type SelectionRange, collapsedAt, isBlank, samePosition } from "./model";
 import { rowEnd, rowStart } from "./caret";
@@ -6,7 +6,7 @@ import { type Action, type CompoundKind, type RowState, reduce } from "./reducer
 import { parseLatex } from "./parse";
 import { serializeToLatex } from "./serialize";
 import { renderNodes } from "./render";
-import { applySelection, positionFromPoint, repairField, scrollCaretIntoView, selectionFromDom } from "./selection";
+import { applySelection, caretScrollOffset, positionFromPoint, repairField, selectionFromDom } from "./selection";
 import { type History, emptyHistory, record, redo, undo } from "./history";
 
 export type MathInputProps = {
@@ -30,6 +30,9 @@ export type MathInputProps = {
 type Row = { id: string; content: FormulaNode[] };
 type Caret = { rowId: string; range: SelectionRange } | null;
 type EditorState = { rows: Row[]; caret: Caret };
+/** What one row's ornaments want written, read off the page before anything is written to it. */
+type RowOrnament = { field: HTMLDivElement; thumb: HTMLDivElement; scrollLeft: number | null; width: string; left: string };
+type DividerOrnament = { divider: HTMLElement; together: boolean };
 /** Subscripts are written with `_` rather than pressed, so they are not among the tools. */
 type ToolKind = Exclude<CompoundKind, "subscript">;
 type EditorIconName = ToolKind | "newLine" | "remove" | "plus" | "minus" | "divide" | "times" | "back" | "forward";
@@ -40,37 +43,56 @@ const RADICAL = "M352 384C345 384 339 379 337 372L223 -20C222 -27 216 -31 210 -3
 
 /**
  * `paths` are filled outlines lifted from a font, so they are drawn y-up and flipped into
- * place; `strokes`, `dots` and `index` are drawn in the box's own coordinates, which is
- * what the symbols written here rather than taken from a typeface use.
+ * place; `strokes`, `rings`, `dots` and `index` are drawn in the box's own coordinates,
+ * which is what the symbols written here rather than taken from a typeface use.
  */
-type Glyph = { width: number; paths?: string[]; strokes?: string[]; dots?: [number, number, number][]; index?: string };
+type Point = [number, number, number];
+type Glyph = { width: number; paths?: string[]; strokes?: string[]; rings?: Point[]; dots?: Point[]; index?: string };
+
+/**
+ * Every glyph, once, at module scope.
+ *
+ * This was a literal inside the component, so each of the eleven tools and the two row
+ * buttons rebuilt the whole table — thirteen entries and their arrays — to read one field
+ * out of it, on every render of every toolbar. The strings themselves were never the cost;
+ * the objects around them were.
+ *
+ * `frac` is drawn from the primitives the others already use rather than from an outline of
+ * its own: it is a bar between two hollow rings, which is exactly what a ring and a stroke
+ * describe, and the 494-byte path it replaces was that same drawing written out as a filled
+ * region. `remove` and the `x` in `power` keep their outlines — they cost 340 and 181 bytes
+ * gzipped between them, and both are letter-like shapes whose weight a 34-unit stroke would
+ * visibly coarsen, `power` beside a numeral taken from the same typeface.
+ */
+const GLYPHS: Record<EditorIconName, Glyph> = {
+  sqrt: { width: 576, paths: [RADICAL] },
+  // The same radical, with the index drawn where a root's index sits.
+  cubeRoot: { width: 576, paths: [RADICAL], index: "3" },
+  frac: { width: 448, strokes: ["M16 192H432"], rings: [[224, 40, 40], [224, 344, 40]] },
+  power: { width: 576, paths: [LETTER_X, NUMERAL] },
+  group: { width: 448, strokes: ["M170 0C60 100 60 288 170 384", "M278 0C388 100 388 288 278 384"] },
+  plus: { width: 448, strokes: ["M64 192H384", "M224 32V352"] },
+  minus: { width: 448, strokes: ["M64 192H384"] },
+  // The two signs the editor writes as characters: a raised dot for multiplication —
+  // never a cross — and the colon for division, which is the fraction's inline form.
+  times: { width: 448, dots: [[224, 192, 72]] },
+  divide: { width: 448, dots: [[224, 102, 52], [224, 282, 52]] },
+  back: { width: 448, strokes: ["M384 192H64", "M176 80 64 192 176 304"] },
+  forward: { width: 448, strokes: ["M64 192H384", "M272 80 384 192 272 304"] },
+  newLine: { width: 512, paths: ["M480 368C480 377 487 384 496 384C505 384 512 377 512 368V272C512 219 469 176 416 176H55L171 59C178 53 178 43 171 37C165 30 155 30 149 37L5 181C2 184 0 188 0 192C0 196 2 200 5 203L149 347C155 353 165 353 171 347C178 341 178 331 171 325L55 208H416C451 208 480 237 480 272V368Z"] },
+  remove: { width: 448, paths: ["M176 432C169 432 163 427 161 421L150 384H299L288 421C286 427 279 432 272 432H176ZM130 430C136 450 155 464 176 464H272C293 464 312 450 318 430L332 384H432C441 384 448 377 448 368C448 359 441 352 432 352H16C7 352 0 359 0 368C0 377 7 384 16 384H116L130 430ZM52 -5 29 304H61L84 -2C85 -19 99 -32 115 -32H333C349 -32 363 -19 364 -2L387 304H419L396 -5C394 -38 366 -64 333 -64H115C82 -64 54 -38 52 -5ZM157 227C163 233 173 233 179 227L224 183L269 227C275 233 285 233 291 227C298 221 298 211 291 205L247 160L291 115C298 109 298 99 291 93C285 86 275 86 269 93L224 137L179 93C173 86 163 86 157 93C151 99 151 109 157 115L201 160L157 205C151 211 151 221 157 227Z"] },
+};
 
 function EditorIcon({ name }: { name: EditorIconName }) {
-  const glyph = ({
-    sqrt: { width: 576, paths: [RADICAL] },
-    // The same radical, with the index drawn where a root's index sits.
-    cubeRoot: { width: 576, paths: [RADICAL], index: "3" },
-    frac: { width: 448, paths: ["M248 344C248 357 237 368 224 368C211 368 200 357 200 344C200 331 211 320 224 320C237 320 248 331 248 344ZM168 344C168 375 193 400 224 400C255 400 280 375 280 344C280 313 255 288 224 288C193 288 168 313 168 344ZM0 192C0 201 7 208 16 208H432C441 208 448 201 448 192C448 183 441 176 432 176H16C7 176 0 183 0 192ZM224 16C237 16 248 27 248 40C248 53 237 64 224 64C211 64 200 53 200 40C200 27 211 16 224 16ZM224 96C255 96 280 71 280 40C280 9 255 -16 224 -16C193 -16 168 9 168 40C168 71 193 96 224 96Z"] },
-    power: { width: 576, paths: [LETTER_X, NUMERAL] },
-    group: { width: 448, strokes: ["M170 0C60 100 60 288 170 384", "M278 0C388 100 388 288 278 384"] },
-    plus: { width: 448, strokes: ["M64 192H384", "M224 32V352"] },
-    minus: { width: 448, strokes: ["M64 192H384"] },
-    // The two signs the editor writes as characters: a raised dot for multiplication —
-    // never a cross — and the colon for division, which is the fraction's inline form.
-    times: { width: 448, dots: [[224, 192, 72]] },
-    divide: { width: 448, dots: [[224, 102, 52], [224, 282, 52]] },
-    back: { width: 448, strokes: ["M384 192H64", "M176 80 64 192 176 304"] },
-    forward: { width: 448, strokes: ["M64 192H384", "M272 80 384 192 272 304"] },
-    newLine: { width: 512, paths: ["M480 368C480 377 487 384 496 384C505 384 512 377 512 368V272C512 219 469 176 416 176H55L171 59C178 53 178 43 171 37C165 30 155 30 149 37L5 181C2 184 0 188 0 192C0 196 2 200 5 203L149 347C155 353 165 353 171 347C178 341 178 331 171 325L55 208H416C451 208 480 237 480 272V368Z"] },
-    remove: { width: 448, paths: ["M176 432C169 432 163 427 161 421L150 384H299L288 421C286 427 279 432 272 432H176ZM130 430C136 450 155 464 176 464H272C293 464 312 450 318 430L332 384H432C441 384 448 377 448 368C448 359 441 352 432 352H16C7 352 0 359 0 368C0 377 7 384 16 384H116L130 430ZM52 -5 29 304H61L84 -2C85 -19 99 -32 115 -32H333C349 -32 363 -19 364 -2L387 304H419L396 -5C394 -38 366 -64 333 -64H115C82 -64 54 -38 52 -5ZM157 227C163 233 173 233 179 227L224 183L269 227C275 233 285 233 291 227C298 221 298 211 291 205L247 160L291 115C298 109 298 99 291 93C285 86 275 86 269 93L224 137L179 93C173 86 163 86 157 93C151 99 151 109 157 115L201 160L157 205C151 211 151 221 157 227Z"] },
-  } satisfies Record<EditorIconName, Glyph>)[name] as Glyph;
+  const glyph = GLYPHS[name];
 
   return <svg className="math-input__icon" viewBox={`0 -64 ${glyph.width} 512`} fill="currentColor" aria-hidden="true">
     {glyph.paths ? <g transform="translate(0 384) scale(1 -1)">
       {glyph.paths.map((path) => <path key={path} d={path} />)}
     </g> : null}
-    {glyph.strokes ? <g stroke="currentColor" strokeWidth="34" strokeLinecap="round" strokeLinejoin="round" fill="none">
-      {glyph.strokes.map((path) => <path key={path} d={path} />)}
+    {glyph.strokes || glyph.rings ? <g stroke="currentColor" strokeWidth="34" strokeLinecap="round" strokeLinejoin="round" fill="none">
+      {glyph.strokes?.map((path) => <path key={path} d={path} />)}
+      {glyph.rings?.map(([x, y, radius]) => <circle key={`${x} ${y}`} cx={x} cy={y} r={radius} />)}
     </g> : null}
     {glyph.dots?.map(([x, y, radius]) => <circle key={`${x} ${y}`} cx={x} cy={y} r={radius} />)}
     {glyph.index ? <text x="24" y="112" fontSize="230" fontWeight="700" fill="currentColor">{glyph.index}</text> : null}
@@ -136,6 +158,103 @@ const KEYED_ACTION: Record<string, Action> = {
   ")": { type: "closeGroup" },
 };
 
+/**
+ * The editor a row is drawn against: everything except the row itself.
+ *
+ * One object rather than eighteen props, and every handler takes the id of the row calling
+ * it rather than being closed over one — both so that `EditorRow` can be memoised, which is
+ * the only reason any of this indirection is here.
+ */
+type RowShell = {
+  disabled: boolean;
+  placeholder: string;
+  ariaLabel: string;
+  groups: typeof TOOL_GROUPS;
+  registerField: (rowId: string, element: HTMLDivElement | null) => void;
+  registerThumb: (rowId: string, element: HTMLDivElement | null) => void;
+  runTool: (rowId: string, action: Action) => void;
+  removeRow: (rowId: string) => void;
+  createRow: () => void;
+  focusField: (rowId: string, field: HTMLDivElement) => void;
+  blurField: () => void;
+  scrollField: (rowId: string) => void;
+  repair: (rowId: string, field: HTMLDivElement) => void;
+  startComposition: () => void;
+  endComposition: (rowId: string, field: HTMLDivElement, data: string) => void;
+  paste: (rowId: string, text: string) => void;
+  pickPosition: (rowId: string, event: ReactMouseEvent<HTMLDivElement>) => void;
+  dragScrollbar: (rowId: string, event: ReactPointerEvent<HTMLDivElement>) => void;
+};
+
+const swallow = (event: { preventDefault: () => void }) => event.preventDefault();
+
+/**
+ * One row: its tools, its field, its scroll indicator.
+ *
+ * Memoised, and this is the dividend the immutable tree has been paying for without ever
+ * collecting. An edit replaces the row it touched and shares every other row by reference,
+ * so a fifty-row worksheet re-rendered fifty rows on a keystroke that changed one of them —
+ * fifty trees walked, fifty sets of JSX built, fifty diffs taken, forty-nine of them against
+ * a tree that could not possibly have changed because it is the same object.
+ *
+ * The comparison is React's own shallow one, which is exactly right here: `row` is the
+ * reference the reducer either replaced or did not.
+ */
+const EditorRow = memo(function EditorRow({ row, index, removable, wearsTools, shell }: { row: Row; index: number; removable: boolean; wearsTools: boolean; shell: RowShell }) {
+  const { ariaLabel, disabled, groups, placeholder } = shell;
+  // Kept stable per row: a fresh ref callback on every render makes React detach and
+  // reattach the element, and the edited row renders on every keystroke.
+  const fieldRef = useCallback((element: HTMLDivElement | null) => shell.registerField(row.id, element), [shell, row.id]);
+  const thumbRef = useCallback((element: HTMLDivElement | null) => shell.registerThumb(row.id, element), [shell, row.id]);
+
+  return <div className="math-input__row">
+    {wearsTools && <div className="math-input__toolbar" role="toolbar" aria-label={`Formula tools for row ${index + 1}`}>
+      {groups.map((group, at) => <Fragment key={group.key}>
+        {at > 0 && <span className="math-input__toolbar-divider" aria-hidden="true" />}
+        <div className="math-input__tool-group" role="group" aria-label={group.label}>
+          {group.tools.map((tool) => <button key={tool.icon} type="button" className="math-input__tool" onMouseDown={swallow} onClick={() => shell.runTool(row.id, tool.action)} disabled={disabled} aria-label={tool.label} title={tool.title}><EditorIcon name={tool.icon} /></button>)}
+        </div>
+      </Fragment>)}
+      {removable && <button type="button" className="math-input__remove-row" onMouseDown={swallow} onClick={() => shell.removeRow(row.id)} aria-label="Remove formula row" title="Remove"><EditorIcon name="remove" /></button>}
+    </div>}
+    <div
+      ref={fieldRef}
+      className="math-input__field"
+      contentEditable={!disabled}
+      suppressContentEditableWarning
+      spellCheck={false}
+      role="textbox"
+      aria-multiline="false"
+      aria-label={`${ariaLabel}, row ${index + 1}`}
+      data-row={row.id}
+      data-placeholder={placeholder}
+      data-empty={isBlank(row.content) ? "" : undefined}
+      // React owns every child of this element, so writing assistants that inject
+      // their own nodes into editable fields are asked to keep out of it.
+      data-gramm="false"
+      data-gramm_editor="false"
+      data-enable-grammarly="false"
+      onFocus={(event) => shell.focusField(row.id, event.currentTarget)}
+      onBlur={shell.blurField}
+      onScroll={() => shell.scrollField(row.id)}
+      onInput={(event) => shell.repair(row.id, event.currentTarget)}
+      onCompositionStart={shell.startComposition}
+      onCompositionEnd={(event) => shell.endComposition(row.id, event.currentTarget, event.data)}
+      onPaste={(event) => { event.preventDefault(); shell.paste(row.id, event.clipboardData.getData("text")); }}
+      onMouseDown={(event) => shell.pickPosition(row.id, event)}
+    >{renderNodes(row.content)}</div>
+    <div className="math-input__scrollbar" aria-hidden="true">
+      <div
+        className="math-input__scrollbar-thumb"
+        ref={thumbRef}
+        onPointerDown={(event) => shell.dragScrollbar(row.id, event)}
+        onMouseDown={swallow}
+      />
+    </div>
+    {wearsTools && <button type="button" className="math-input__new-row" onMouseDown={swallow} onClick={shell.createRow} disabled={disabled} aria-label="Add new formula row" title="New line"><EditorIcon name="newLine" /></button>}
+  </div>;
+});
+
 const BACKWARD_DELETIONS = ["deleteContentBackward", "deleteWordBackward", "deleteSoftLineBackward", "deleteHardLineBackward", "deleteByCut", "deleteByDrag", "deleteContent"];
 const FORWARD_DELETIONS = ["deleteContentForward", "deleteWordForward", "deleteSoftLineForward", "deleteHardLineForward"];
 
@@ -161,6 +280,8 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
   const published = useRef<string | null>(null);
   /** Each row's scrollbar thumb, driven through the DOM: scrolling must not re-render the tree. */
   const thumbs = useRef(new Map<string, HTMLDivElement>());
+  /** How many rows the ornaments were last drawn for, which is how a row appearing is noticed. */
+  const drawnRows = useRef(-1);
   const labelId = useId();
   if (published.current === null) published.current = latexOf(state.rows);
 
@@ -168,22 +289,41 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
    * The scrollbar is drawn over the field rather than inside it. A native one takes its
    * height out of the row, so a row would grow the moment its formula outgrew it and
    * shrink again on the next backspace; this one shows the same thing and costs nothing.
+   *
+   * Split in two, because the split is the whole point: `measureRow` only reads the page
+   * and `paintRow` only writes it. Every ornament pass below reads everything it is going
+   * to need before it writes anything, so a keystroke costs the browser one layout instead
+   * of one per read that followed a write.
    */
-  const syncScrollbar = useCallback((rowId: string) => {
+  const measureRow = useCallback((rowId: string, scrollBy = 0): RowOrnament | null => {
     const field = fields.current.get(rowId);
     const thumb = thumbs.current.get(rowId);
-    if (!field || !thumb) return;
-    const hidden = field.scrollWidth - field.clientWidth <= 1;
+    if (!field || !thumb) return null;
+    // Each of these was asked for three times over, which is three chances to be answered
+    // by a fresh layout rather than the same one.
+    const scrollWidth = field.scrollWidth;
+    const clientWidth = field.clientWidth;
+    const scrollLeft = field.scrollLeft;
+    const scrollable = scrollWidth - clientWidth;
+    const wanted = Math.max(0, Math.min(scrollLeft + scrollBy, scrollable));
     // A very long formula would leave a thumb too small to see, let alone grab.
-    const ratio = Math.max(field.clientWidth / field.scrollWidth, 0.08);
-    const travelled = field.scrollLeft / (field.scrollWidth - field.clientWidth);
-    thumb.style.width = hidden ? "0" : `${ratio * 100}%`;
-    thumb.style.left = hidden ? "0" : `${travelled * (100 - ratio * 100)}%`;
+    const ratio = Math.max(clientWidth / scrollWidth, 0.08);
+    const travelled = scrollable > 0 ? wanted / scrollable : 0;
+    return {
+      field,
+      thumb,
+      scrollLeft: wanted === scrollLeft ? null : wanted,
+      width: scrollable <= 1 ? "0" : `${ratio * 100}%`,
+      left: scrollable <= 1 ? "0" : `${travelled * (100 - ratio * 100)}%`,
+    };
   }, []);
 
-  const syncScrollbars = useCallback(() => {
-    for (const rowId of fields.current.keys()) syncScrollbar(rowId);
-  }, [syncScrollbar]);
+  const paintRow = useCallback((ornament: RowOrnament | null) => {
+    if (!ornament) return;
+    if (ornament.scrollLeft !== null) ornament.field.scrollLeft = ornament.scrollLeft;
+    ornament.thumb.style.width = ornament.width;
+    ornament.thumb.style.left = ornament.left;
+  }, []);
 
   /**
    * A toolbar too wide for its field wraps, and a divider left at the end of a line
@@ -192,16 +332,40 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
    * the line back the room that made it wrap, so the two would take turns undoing each
    * other. A group that shares its line with the divider before it keeps that divider.
    */
-  const syncDividers = useCallback(() => {
-    for (const divider of frame.current?.querySelectorAll<HTMLElement>(".math-input__toolbar-divider") ?? []) {
+  const measureDividers = useCallback((): DividerOrnament[] =>
+    [...(frame.current?.querySelectorAll<HTMLElement>(".math-input__toolbar-divider") ?? [])].map((divider) => {
       const group = divider.nextElementSibling as HTMLElement | null;
-      const together = !!group && group.offsetTop < divider.offsetTop + divider.offsetHeight;
-      divider.style.visibility = together ? "" : "hidden";
-    }
-  }, []);
+      return { divider, together: !!group && group.offsetTop < divider.offsetTop + divider.offsetHeight };
+    }), []);
 
-  /** Everything drawn from measurement rather than from state, after a render and after a resize. */
-  const syncFrame = useCallback(() => { syncScrollbars(); syncDividers(); }, [syncScrollbars, syncDividers]);
+  /**
+   * Everything drawn from measurement rather than from state, in one read and then one write.
+   *
+   * `rowIds` is which rows to redraw, and on an ordinary keystroke it is one: a row nobody
+   * touched cannot have changed how far it scrolls, so redrawing all of them was work
+   * proportional to the worksheet for an edit that was proportional to nothing. Rows change
+   * size for reasons other than editing, and those reach here through the `ResizeObserver`
+   * below, which is where they belong.
+   */
+  const syncFrame = useCallback((rowIds: Iterable<string>, caret: Caret = null) => {
+    // ---- read ----
+    const caretField = caret ? fields.current.get(caret.rowId) : undefined;
+    let caretScroll = 0;
+    // Writing the selection is not a layout write: it moves no box, so the reads that
+    // follow it are still answered by the one layout this pass forces. And it has to come
+    // first, because what is measured next is where the caret has just been put.
+    if (caret && caretField && !composing.current && document.activeElement === caretField && applySelection(caretField, caret.range)) {
+      caretScroll = caretScrollOffset(caretField);
+    }
+    const rows = Array.from(rowIds, (rowId) => measureRow(rowId, rowId === caret?.rowId ? caretScroll : 0));
+    const dividers = measureDividers();
+
+    // ---- write ----
+    for (const row of rows) paintRow(row);
+    for (const { divider, together } of dividers) divider.style.visibility = together ? "" : "hidden";
+  }, [measureRow, paintRow, measureDividers]);
+
+  const syncEveryRow = useCallback(() => { syncFrame(fields.current.keys()); }, [syncFrame]);
 
   const commit = useCallback((next: EditorState) => {
     live.current = next;
@@ -276,27 +440,34 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     onChange?.(next);
   }, [state.rows, onChange]);
 
-  // Put the caret where the model says it is. Runs after every render, and is a no-op
-  // when the DOM already agrees, so it doubles as a repair for stray native movement.
+  /**
+   * One pass over the page per render: put the caret where the model says it is, scroll it
+   * into view, and redraw the ornaments — reading all of it, then writing all of it.
+   *
+   * These were two effects, and between them they read the page, wrote it, and read it
+   * again three times over. They are one now because there is only one thing to be done
+   * here and one moment to do it in; splitting it into passes that each measured after the
+   * last one had written is what made a keystroke cost three layouts instead of one.
+   *
+   * Putting the caret back is also the repair for stray native movement, so this runs after
+   * every render and is a no-op whenever the DOM already agrees.
+   */
   useLayoutEffect(() => {
-    const caret = state.caret;
-    const field = caret ? fields.current.get(caret.rowId) : undefined;
-    if (composing.current || !caret || !field || document.activeElement !== field) return;
-    if (applySelection(field, caret.range)) scrollCaretIntoView(field);
+    // Every row when the set of them changed — a row added, removed, or the whole document
+    // replaced by a new `value` — and the edited row alone otherwise.
+    const focused = state.caret?.rowId;
+    const swept = drawnRows.current !== state.rows.length || !focused || !fields.current.has(focused);
+    drawnRows.current = state.rows.length;
+    syncFrame(swept ? fields.current.keys() : [focused], state.caret);
   });
-
-  // The thumb is a rendering of the field's scroll state, and a divider of where its
-  // toolbar wrapped, so both follow every edit and every change of the editor's width,
-  // not only the scrolling itself.
-  useLayoutEffect(syncFrame);
 
   useEffect(() => {
     const container = frame.current;
     if (!container) return;
-    const observer = new ResizeObserver(syncFrame);
+    const observer = new ResizeObserver(syncEveryRow);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [syncFrame]);
+  }, [syncEveryRow]);
 
   useLayoutEffect(() => {
     const id = pendingFocus.current;
@@ -421,20 +592,20 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
   }, [disabled, dispatch, createRow, restore]);
 
   /** Undoes whatever reached the DOM without going through a reducer. */
-  const repair = (field: HTMLDivElement, rowId: string) => {
+  const repair = useCallback((rowId: string, field: HTMLDivElement) => {
     const row = live.current.rows.find((candidate) => candidate.id === rowId);
     if (!row) return;
     repairField(field, row.content);
     if (live.current.caret?.rowId === rowId) applySelection(field, live.current.caret.range);
-  };
+  }, []);
 
-  const endComposition = (event: ReactCompositionEvent<HTMLDivElement>, rowId: string) => {
+  const endComposition = useCallback((rowId: string, field: HTMLDivElement, data: string) => {
     composing.current = false;
     // Undo the IME's direct DOM edits so React's next render diffs against reality,
     // then apply the composed text as one ordinary insertion.
-    repair(event.currentTarget, rowId);
-    if (event.data) dispatch(rowId, { type: "insertText", text: event.data });
-  };
+    repair(rowId, field);
+    if (data) dispatch(rowId, { type: "insertText", text: data });
+  }, [repair, dispatch]);
 
   // Native selection gestures — Shift+Arrow, double-click, Select All — are left to the
   // browser and read back here, rather than each being given its own reducer action.
@@ -460,7 +631,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
    * keeps the focus and the caret: reading one line is no reason to lose your place in
    * another.
    */
-  const dragScrollbar = (event: ReactPointerEvent<HTMLDivElement>, rowId: string) => {
+  const dragScrollbar = useCallback((rowId: string, event: ReactPointerEvent<HTMLDivElement>) => {
     const field = fields.current.get(rowId);
     const thumb = event.currentTarget;
     const track = thumb.parentElement;
@@ -480,84 +651,75 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onEnd);
     window.addEventListener("pointercancel", onEnd);
-  };
+  }, []);
+
+  const focusField = useCallback((rowId: string, field: HTMLDivElement) => {
+    setActiveRowId(rowId);
+    setRestingRowId(rowId);
+    if (live.current.caret?.rowId === rowId) return;
+    const row = live.current.rows.find((candidate) => candidate.id === rowId);
+    if (!row) return;
+    commit({ rows: live.current.rows, caret: { rowId, range: selectionFromDom(field) ?? collapsedAt(rowEnd(row.content)) } });
+  }, [commit]);
+
+  const pickPosition = useCallback((rowId: string, event: ReactMouseEvent<HTMLDivElement>) => {
+    // Clicks on text are placed by the browser; clicks on a fraction bar, a bracket, a
+    // radical or slot padding are not, so those are hit-tested here.
+    if (disabled || event.button !== 0 || (event.target as Element).closest(".math-input__text")) return;
+    const position = positionFromPoint(event.currentTarget, event.clientX, event.clientY);
+    if (!position) return;
+    event.preventDefault();
+    event.currentTarget.focus();
+    dispatch(rowId, { type: "select", selection: collapsedAt(position) });
+  }, [disabled, dispatch]);
 
   // Which row wears the tools: the focused one, or — when they are pinned — the row the
   // caret last sat in, falling back to the first so a fresh editor still shows them.
-  const existing = (id: string | null) => (state.rows.some((row) => row.id === id) ? id : null);
-  const toolbarRowId = existing(activeRowId) ?? (autoHideToolbar ? null : existing(restingRowId) ?? state.rows[0].id);
+  const toolbarRowId = useMemo(() => {
+    const existing = (id: string | null) => (state.rows.some((row) => row.id === id) ? id : null);
+    return existing(activeRowId) ?? (autoHideToolbar ? null : existing(restingRowId) ?? state.rows[0].id);
+  }, [state.rows, activeRowId, restingRowId, autoHideToolbar]);
 
-  // Filtered before it is drawn, so the dividers follow the groups that are actually
-  // there rather than a hidden one leaving its line behind.
-  const groups = TOOL_GROUPS.filter((group) => (group.key === "operators" ? showOperators : group.key === "navigation" ? showNavigation : true));
+  /**
+   * The shell a row is drawn against: everything about the editor that is not this row.
+   *
+   * Memoised, and every handler in it takes the id of the row it is acting on, because
+   * `EditorRow` is memoised and neither of those is optional for that to mean anything. A
+   * handler closed over one row would be a new function for every row on every render, and
+   * an object rebuilt each render would fail the comparison on its own.
+   */
+  const shell: RowShell = useMemo(() => ({
+    disabled,
+    placeholder,
+    ariaLabel,
+    // Filtered before it is drawn, so the dividers follow the groups that are actually
+    // there rather than a hidden one leaving its line behind.
+    groups: TOOL_GROUPS.filter((group) => (group.key === "operators" ? showOperators : group.key === "navigation" ? showNavigation : true)),
+    registerField: (rowId, element) => { if (element) fields.current.set(rowId, element); else fields.current.delete(rowId); },
+    registerThumb: (rowId, element) => { if (element) thumbs.current.set(rowId, element); else thumbs.current.delete(rowId); },
+    // A toolbar that stays put can be used while its row is not focused, and an edit whose
+    // caret nobody can see is no use, so the row is focused along with it.
+    runTool: (rowId, action) => { focusRow(rowId); dispatch(rowId, action); },
+    removeRow,
+    createRow,
+    focusField,
+    blurField: () => { consumedKeys.current.clear(); setActiveRowId(null); },
+    // The row being scrolled, and only its thumb: a read and then a write, like every other
+    // ornament pass, and the caret is not involved in a scroll.
+    scrollField: (rowId) => paintRow(measureRow(rowId)),
+    repair,
+    startComposition: () => { composing.current = true; },
+    endComposition,
+    paste: (rowId, text) => dispatch(rowId, { type: "insertText", text }),
+    pickPosition,
+    dragScrollbar,
+  }), [disabled, placeholder, ariaLabel, showOperators, showNavigation, focusRow, dispatch, removeRow, createRow, focusField, paintRow, measureRow, repair, endComposition, pickPosition, dragScrollbar]);
 
-  const buttonClass = "math-input__tool";
   return <div className={`math-input ${className}`.trim()} style={style}>
     <div className="math-input__frame" ref={frame} aria-labelledby={labelId}>
       <span id={labelId} className="math-input__visually-hidden">{ariaLabel}</span>
-      {state.rows.map((row, index) => <div className="math-input__row" key={row.id}>
-        {toolbarRowId === row.id && <div className="math-input__toolbar" role="toolbar" aria-label={`Formula tools for row ${index + 1}`}>
-          {groups.map((group, at) => <Fragment key={group.key}>
-            {at > 0 && <span className="math-input__toolbar-divider" aria-hidden="true" />}
-            <div className="math-input__tool-group" role="group" aria-label={group.label}>
-              {group.tools.map((tool) => <button key={tool.icon} type="button" className={buttonClass} onMouseDown={(event) => event.preventDefault()} onClick={() => { focusRow(row.id); dispatch(row.id, tool.action); }} disabled={disabled} aria-label={tool.label} title={tool.title}><EditorIcon name={tool.icon} /></button>)}
-            </div>
-          </Fragment>)}
-          {state.rows.length > 1 && <button type="button" className="math-input__remove-row" onMouseDown={(event) => event.preventDefault()} onClick={() => removeRow(row.id)} aria-label="Remove formula row" title="Remove"><EditorIcon name="remove" /></button>}
-        </div>}
-        <div
-          ref={(element) => { if (element) fields.current.set(row.id, element); else fields.current.delete(row.id); }}
-          className="math-input__field"
-          contentEditable={!disabled}
-          suppressContentEditableWarning
-          spellCheck={false}
-          role="textbox"
-          aria-multiline="false"
-          aria-label={`${ariaLabel}, row ${index + 1}`}
-          data-row={row.id}
-          data-placeholder={placeholder}
-          data-empty={isBlank(row.content) ? "" : undefined}
-          // React owns every child of this element, so writing assistants that inject
-          // their own nodes into editable fields are asked to keep out of it.
-          data-gramm="false"
-          data-gramm_editor="false"
-          data-enable-grammarly="false"
-          onFocus={(event) => {
-            setActiveRowId(row.id);
-            setRestingRowId(row.id);
-            if (live.current.caret?.rowId === row.id) return;
-            commit({ rows: live.current.rows, caret: { rowId: row.id, range: selectionFromDom(event.currentTarget) ?? collapsedAt(rowEnd(row.content)) } });
-          }}
-          onBlur={() => { consumedKeys.current.clear(); setActiveRowId(null); }}
-          onScroll={() => syncScrollbar(row.id)}
-          onInput={(event) => { if (!composing.current) repair(event.currentTarget, row.id); }}
-          onCompositionStart={() => { composing.current = true; }}
-          onCompositionEnd={(event) => endComposition(event, row.id)}
-          onPaste={(event) => {
-            event.preventDefault();
-            dispatch(row.id, { type: "insertText", text: event.clipboardData.getData("text") });
-          }}
-          onMouseDown={(event) => {
-            // Clicks on text are placed by the browser; clicks on a fraction bar, a
-            // bracket, a radical or slot padding are not, so those are hit-tested here.
-            if (disabled || event.button !== 0 || (event.target as Element).closest(".math-input__text")) return;
-            const position = positionFromPoint(event.currentTarget, event.clientX, event.clientY);
-            if (!position) return;
-            event.preventDefault();
-            event.currentTarget.focus();
-            dispatch(row.id, { type: "select", selection: collapsedAt(position) });
-          }}
-        >{renderNodes(row.content)}</div>
-        <div className="math-input__scrollbar" aria-hidden="true">
-          <div
-            className="math-input__scrollbar-thumb"
-            ref={(element) => { if (element) thumbs.current.set(row.id, element); else thumbs.current.delete(row.id); }}
-            onPointerDown={(event) => dragScrollbar(event, row.id)}
-            onMouseDown={(event) => event.preventDefault()}
-          />
-        </div>
-        {toolbarRowId === row.id && <button type="button" className="math-input__new-row" onMouseDown={(event) => event.preventDefault()} onClick={createRow} disabled={disabled} aria-label="Add new formula row" title="New line"><EditorIcon name="newLine" /></button>}
-      </div>)}
+      {state.rows.map((row, index) =>
+        <EditorRow key={row.id} row={row} index={index} removable={state.rows.length > 1} wearsTools={toolbarRowId === row.id} shell={shell} />)}
     </div>
   </div>;
 }
