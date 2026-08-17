@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { type FormulaNode, decodePath, isText, resolve, resolveArray } from "./model";
+import { type FormulaNode, branchesOf, decodePath, isText, resolve, resolveArray } from "./model";
 import { parseLatex } from "./parse";
-import { CARET_PLACEHOLDER, renderNodes } from "./render";
+import { CARET_PLACEHOLDER, renderNodes, rootGrowth } from "./render";
 
 const draw = (nodes: FormulaNode[]) => {
   const host = document.createElement("div");
@@ -47,7 +47,7 @@ describe("renderNodes", () => {
   it("keeps the class contract the stylesheet is written against", () => {
     const host = draw(parseLatex("\\sqrt[3]{8}\\frac{1}{2}x^{2}y_{i}\\left(9\\right)"));
     for (const selector of [
-      ".math-input__root", ".math-input__root--s", ".math-input__root--indexed", ".math-input__root-body", ".math-input__root-symbol",
+      ".math-input__root", ".math-input__root--indexed", ".math-input__root-body", ".math-input__root-symbol",
       ".math-input__fraction", ".math-input__power", ".math-input__subscript", ".math-input__group", ".math-input__paren",
       ".math-input__slot--radicand", ".math-input__slot--root-index", ".math-input__slot--numerator", ".math-input__slot--denominator",
       ".math-input__slot--base", ".math-input__slot--exponent", ".math-input__slot--subscript", ".math-input__slot--group",
@@ -86,28 +86,50 @@ describe("renderNodes", () => {
   });
 });
 
-describe("the size of a radical", () => {
-  const sizesIn = (latex: string) => [...draw(parseLatex(latex)).querySelectorAll<HTMLElement>(".math-input__root")].map((root) => root.className.match(/root--([sml])/)![1]);
-  const sizeOf = (latex: string) => sizesIn(latex)[0];
+/**
+ * This was written against three radicals chosen between by two thresholds. There are no
+ * sizes to choose between now: the weight is a function of what the root covers, which says
+ * the same thing about a root over a fraction being heavier than one over a digit without
+ * also saying that every root between one and a half lines and two and a third is drawn as
+ * though it were exactly two.
+ */
+describe("the weight of a radical", () => {
+  const radicandsIn = (nodes: FormulaNode[]): FormulaNode[][] =>
+    nodes.flatMap((node) => (node.type === "sqrt" ? [node.content, ...radicandsIn(node.content)] : node.type === "text" ? [] : branchesOf(node).flatMap((branch) => radicandsIn(branch.nodes))));
+  const weightsIn = (latex: string) => radicandsIn(parseLatex(latex)).map((radicand) => rootGrowth(radicand).stroke);
+  const weightOf = (latex: string) => weightsIn(latex)[0];
 
-  it("keeps the small radical for a number, however long, and for a script", () => {
-    expect(sizeOf("\\sqrt{9}")).toBe("s");
-    expect(sizeOf("\\sqrt{9+16+25}")).toBe("s");
-    expect(sizeOf("\\sqrt{x^{2}}")).toBe("s");
-    expect(sizeOf("\\sqrt{\\left(9+16\\right)}")).toBe("s");
+  it("draws a root over one line of writing at the weight the host set, however long the line", () => {
+    expect(weightOf("\\sqrt{9}")).toBe(1);
+    expect(weightOf("\\sqrt{9+16+25}")).toBe(1);
+    expect(weightOf("\\sqrt{\\left(9+16\\right)}")).toBe(1);
   });
 
-  it("takes the middle one for a fraction", () => {
-    expect(sizeOf("\\sqrt{\\frac{1}{2}}")).toBe("m");
-    expect(sizeOf("\\sqrt{1+\\frac{1}{2}}")).toBe("m");
+  it("grows with what it covers rather than stepping between sizes", () => {
+    const script = weightOf("\\sqrt{x^{2}}");
+    const fraction = weightOf("\\sqrt{\\frac{1}{2}}");
+    const deeper = weightOf("\\sqrt{\\frac{\\frac{1}{2}}{3}}");
+    expect(script).toBeGreaterThan(1);
+    expect(fraction).toBeGreaterThan(script);
+    expect(deeper).toBeGreaterThan(fraction);
+    // A script raises a root by less than a fraction does, because it is shorter — under the
+    // old thresholds both a script and a bare digit were drawn identically.
+    expect(script - 1).toBeLessThan(fraction - script);
+    // Equal heights weigh the same, whatever they are made of.
+    expect(weightOf("\\sqrt{x^{2}}")).toBe(weightOf("\\sqrt{y_{i}}"));
   });
 
-  it("takes the largest for anything deeper than that", () => {
-    expect(sizeOf("\\sqrt{\\frac{\\frac{1}{2}}{3}}")).toBe("l");
+  it("weighs each root by its own radicand, so a root inside a root is the heavier of the two", () => {
+    const [outer, inner] = weightsIn("\\sqrt{\\sqrt{\\frac{1}{2}}}");
+    expect(outer).toBeGreaterThan(inner);
+    const [first, second] = weightsIn("\\sqrt{2}+\\sqrt{\\frac{1}{2}}");
+    expect(second).toBeGreaterThan(first);
   });
 
-  it("sizes each root by what it covers, so a root inside a root is the larger of the two", () => {
-    expect(sizesIn("\\sqrt{\\sqrt{\\frac{1}{2}}}")).toEqual(["l", "m"]);
-    expect(sizesIn("\\sqrt{2}+\\sqrt{\\frac{1}{2}}")).toEqual(["s", "m"]);
+  it("stops growing, because a root over a page of working is a tall radical and not a thick one", () => {
+    const deep = parseLatex("\\sqrt{\\frac{\\frac{\\frac{1}{2}}{3}}{\\frac{\\frac{4}{5}}{6}}}");
+    const growth = rootGrowth(radicandsIn(deep)[0]);
+    expect(growth.stroke).toBe(2.4);
+    expect(growth.width).toBe(3);
   });
 });

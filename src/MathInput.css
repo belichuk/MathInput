@@ -22,13 +22,10 @@
   /* TeX sets a binary operator with 4/18 em either side and a relation with 5/18. */
   --math-input-operator-space: 0.222em;
   --math-input-relation-space: 0.278em;
-  /* The three radicals, one per height of radicand. See `.math-input__root-symbol`. */
-  --math-input-root-stroke-s: 0.11em;
-  --math-input-root-stroke-m: 0.15em;
-  --math-input-root-stroke-l: 0.2em;
-  --math-input-root-width-s: 1.05em;
-  --math-input-root-width-m: 1.55em;
-  --math-input-root-width-l: 2.4em;
+  /* The radical over a single line of writing. It grows from here with what it covers —
+     `rootGrowth` in render.tsx reads the height off the tree and scales both of these. */
+  --math-input-root-stroke: 0.11em;
+  --math-input-root-width: 1.05em;
   box-sizing: border-box;
   width: 100%;
   max-width: var(--math-input-max-width, 48rem);
@@ -281,8 +278,11 @@
  * gap is where the caret stands to show it is out.
  */
 .math-input__root {
-  --math-input-root-stroke: var(--math-input-root-stroke-s);
-  --math-input-root-width: var(--math-input-root-width-s);
+  /* What is actually drawn: the host's value for one line, grown by how many lines this
+     particular root covers. Private, because how the weight is arrived at is not a contract
+     — the two properties above are. */
+  --_root-stroke: calc(var(--math-input-root-stroke) * var(--_root-stroke-grow, 1));
+  --_root-width: calc(var(--math-input-root-width) * var(--_root-width-grow, 1));
   display: inline-flex;
   flex-shrink: 0;
   align-items: stretch;
@@ -290,28 +290,12 @@
   vertical-align: middle;
 }
 
-/*
- * Which of the three radicals this root wears, chosen from the tree by `rootSize` in
- * render.tsx. The drawing fits its radicand exactly whatever the size, so what the size
- * settles is the weight: the stroke of a radical over a stack of fractions is heavier
- * than one over a digit, as it would be if it were drawn by hand.
- */
-.math-input__root--m {
-  --math-input-root-stroke: var(--math-input-root-stroke-m);
-  --math-input-root-width: var(--math-input-root-width-m);
-}
-
-.math-input__root--l {
-  --math-input-root-stroke: var(--math-input-root-stroke-l);
-  --math-input-root-width: var(--math-input-root-width-l);
-}
-
 /* The radical is drawn over the body's own left padding, so the radicand sets the height. */
 .math-input__root-body {
   position: relative;
   display: inline-flex;
   align-items: stretch;
-  padding-left: var(--math-input-root-width);
+  padding-left: var(--_root-width);
 }
 
 /*
@@ -327,15 +311,15 @@
  */
 .math-input__root-symbol {
   position: absolute;
-  top: calc(var(--math-input-root-stroke) / 2);
+  top: calc(var(--_root-stroke) / 2);
   left: 0;
   display: block;
   /* Both sizes are given: an SVG is a replaced element, and `bottom` alone would leave it
      at the height its own viewBox implies rather than the height of what it covers. */
-  width: var(--math-input-root-width);
-  height: calc(100% - var(--math-input-root-stroke) / 2);
+  width: var(--_root-width);
+  height: calc(100% - var(--_root-stroke) / 2);
   overflow: visible;
-  stroke-width: var(--math-input-root-stroke);
+  stroke-width: var(--_root-stroke);
   pointer-events: none;
 }
 
@@ -412,7 +396,7 @@
   min-width: 1.2em;
   min-height: 1.22em;
   padding: 0.04em 0.16em 0 0.1em;
-  border-top: var(--math-input-root-stroke) solid currentColor;
+  border-top: var(--_root-stroke) solid currentColor;
 }
 
 /*
@@ -430,7 +414,7 @@
   min-width: 0.45em;
   min-height: 0;
   padding: 0;
-  transform: translateY(0.6em);
+  transform: translateY(var(--_root-index-drop, 0.6em));
   font-size: 0.55em;
   line-height: 1;
 }
@@ -440,23 +424,24 @@
  *
  * This radical is one drawing stretched to the height of its radicand, so its rising stroke
  * leans further right the taller it is asked to stand: at a given fraction of the height the
- * stroke sits at a fixed fraction of the *width*, and the width is what changes between the
- * three sizes. An index kerned in by a constant would touch the stroke on a short root and
- * float a visible gap away from it on a tall one. A font's radical needs no such thing —
- * KaTeX kerns its index in by the same 0.556em at every size — because a font stretches the
- * middle of the glyph and leaves the hook where it was.
+ * stroke sits at a fixed fraction of the *width*, and the width grows with the root. An index
+ * kerned in by a constant would touch the stroke on a short root and float a visible gap away
+ * from it on a tall one. A font's radical needs no such thing — KaTeX kerns its index in by
+ * the same 0.556em at every size — because a font stretches the middle of the glyph and
+ * leaves the hook where it was.
+ *
+ * The two numbers are fitted rather than derived, and they hold the gap between index and
+ * stroke at one constant distance from a square root over a digit to one over a stack of
+ * fractions. The index's own drop down the stroke is the matching half of it, and is computed
+ * from the same height in `rootGrowth`.
  *
  * Written as a pull on the body rather than a negative margin on the index, and that matters:
  * `em` inside the index resolves against the index's own smaller font size, so the
  * root-width term would come out at just over half the length it reads as.
  */
 .math-input__root--indexed .math-input__root-body {
-  margin-left: calc(0.17em - 0.48 * var(--math-input-root-width));
+  margin-left: calc(0.52em - 0.813 * var(--_root-width));
 }
-
-/* The taller the root, the further down its crook is: the index follows it. */
-.math-input__root--m .math-input__slot--root-index { transform: translateY(1.35em); }
-.math-input__root--l .math-input__slot--root-index { transform: translateY(2.5em); }
 
 .math-input__slot--numerator {
   padding-bottom: 0.08em;

@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import { type BranchKey, type CompoundNode, type FormulaNode, type Path, branchOf, branchesOf, encodePath, isBlank, slotPath, stepOf } from "./model";
 import { type AnyDraw, type FenceShape, slotCodeOf, specFor } from "./registry";
 
@@ -94,14 +94,33 @@ export function linesIn(nodes: FormulaNode[]): number {
 }
 
 /**
- * Which of the three radicals a root wears: over a number or a word, over a fraction, or
- * over anything deeper. The drawing stretches to whatever it covers, so the size decides
- * the weight of the stroke rather than the height — a radical over a stack of fractions
- * drawn in the same hairline as one over a digit reads as a different mark altogether.
+ * How heavily a radical is drawn, and how far it reaches before its bar begins — as a
+ * function of what it covers rather than as one of three sizes to be chosen between.
+ *
+ * The drawing stretches to whatever it covers, so what the height settles is the *weight*: a
+ * radical over a stack of fractions drawn in the same hairline as one over a digit reads as a
+ * different mark altogether. That was three tiers with a threshold either side of them, and a
+ * threshold shows: two roots a hair apart in height were drawn in visibly different weights,
+ * and every root between 1.5 and 2.3 lines was drawn as though it were exactly two.
+ *
+ * Both grow from the value at one line, which is what the two public properties set, and both
+ * stop growing — a root over eight lines of working is a tall radical and not a thick one.
+ * Returned as multipliers so the host's own `--math-input-root-stroke` still means what it
+ * says: this scales it rather than replacing it.
+ *
+ * `linesIn` is read off the tree and nothing here measures the page (invariant 4).
  */
-export const rootSize = (nodes: FormulaNode[]): "s" | "m" | "l" => {
-  const lines = linesIn(nodes);
-  return lines <= 1.5 ? "s" : lines <= 2.3 ? "m" : "l";
+export const rootGrowth = (nodes: FormulaNode[]): { stroke: number; width: number; indexDrop: number } => {
+  const over = linesIn(nodes) - 1;
+  return {
+    stroke: Math.min(1 + 0.41 * over, 2.4),
+    width: Math.min(1 + 0.59 * over, 3),
+    // How far the index sits below the top of the radical, in its own em. The crook it tucks
+    // into is a fraction of the height, so the taller the root the further down it is — this
+    // was three hand-set offsets, one of which was a guess at a size the corpus had no
+    // example of.
+    indexDrop: Math.min(0.6 + 0.75 * over, 3.6),
+  };
 };
 
 /**
@@ -144,8 +163,8 @@ function renderNode(node: FormulaNode, path: Path): ReactNode {
   // than as markup of its own. A construct the renderer has never heard of is not a thing that
   // can happen: it has a row, and a row names a shape.
   const slot = (branch: BranchKey) => <Slot key={branch} node={node} branch={branch} path={path} />;
-  const { className, children } = draw(node, specFor(node).draw, slot);
-  return <span key={key} className={className} data-math={node.type} data-path={key}>{children}</span>;
+  const { className, children, style } = draw(node, specFor(node).draw, slot);
+  return <span key={key} className={className} style={style} data-math={node.type} data-path={key}>{children}</span>;
 }
 
 /**
@@ -155,7 +174,7 @@ function renderNode(node: FormulaNode, path: Path): ReactNode {
  * Returning the class rather than the whole element keeps the address and `data-math` in one
  * place above, so a shape cannot forget to carry them.
  */
-function draw(node: CompoundNode, shape: AnyDraw, slot: (branch: BranchKey) => ReactNode): { className: string; children: ReactNode } {
+function draw(node: CompoundNode, shape: AnyDraw, slot: (branch: BranchKey) => ReactNode): { className: string; children: ReactNode; style?: CSSProperties } {
   switch (shape.primitive) {
     case "stack":
       return { className: shape.className, children: <>{slot(shape.above)}{slot(shape.below)}</> };
@@ -168,8 +187,14 @@ function draw(node: CompoundNode, shape: AnyDraw, slot: (branch: BranchKey) => R
       // the root's own child rather than the body's: it sits outside the radical.
       const radicand = branchOf(node, shape.radicand) ?? [];
       const indexed = shape.index !== undefined && branchOf(node, shape.index) !== null;
+      const growth = rootGrowth(radicand);
       return {
-        className: `${shape.className} ${shape.className}--${rootSize(radicand)}${indexed ? ` ${shape.className}--indexed` : ""}`,
+        className: `${shape.className}${indexed ? ` ${shape.className}--indexed` : ""}`,
+        // The one place the renderer writes numbers into the document, and they are numbers
+        // read off the tree rather than off the page: a pure function of the node, like every
+        // other thing here. Private names, because how a root's weight is arrived at is not a
+        // contract — the two properties they scale are.
+        style: { "--_root-stroke-grow": growth.stroke, "--_root-width-grow": growth.width, "--_root-index-drop": `${growth.indexDrop}em` } as CSSProperties,
         children: <>
           {indexed && shape.index !== undefined ? slot(shape.index) : null}
           <span className="math-input__root-body"><RootSymbol />{slot(shape.radicand)}</span>
