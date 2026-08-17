@@ -79,8 +79,9 @@ const noCaretHitTesting = (): void => { delete (document as unknown as { caretRa
 
 describe("reading a position back out of the DOM", () => {
   it("takes the run the offset is inside, and clamps to its length", () => {
-    const { field } = mount("1+2");
+    const { field } = mount("abc");
     const run = at(field, "0");
+    expect(run.childNodes).toHaveLength(1); // nothing to space, so one text node
     expect(positionFromDom(field, run.firstChild!, 2)).toEqual(there("0", 2));
     // A native selection can name an offset past the text the model has, and does after an
     // IME has been writing into the element; the model's length wins.
@@ -129,11 +130,92 @@ describe("reading a position back out of the DOM", () => {
   });
 
   it("reads a whole native selection, or nothing when there is none", () => {
-    const { field } = mount("1+2");
+    const { field } = mount("abc");
     expect(selectionFromDom(field)).toBeNull();
     const run = at(field, "0").firstChild!;
     window.getSelection()!.setBaseAndExtent(run, 1, run, 3);
     expect(selectionFromDom(field)).toEqual({ anchor: there("0", 1), focus: there("0", 3) });
+  });
+});
+
+/**
+ * The bridge's one real assumption used to be that a run is a single text node, and
+ * typography breaks it: an operation is set with space around it, which means a span around
+ * the operator and a run spread across three nodes. Everything here is about that seam.
+ */
+describe("a run split either side of an operation", () => {
+  const nodesOf = (run: HTMLElement) => [...run.childNodes].map((child) => (child.nodeType === Node.TEXT_NODE ? child.textContent : `<${(child as HTMLElement).className.replace("math-input__token ", "")}>${child.textContent}</>`));
+
+  it("splits the run without changing its text or its address", () => {
+    const { field } = mount("1+2");
+    const run = at(field, "0");
+    expect(nodesOf(run)).toEqual(["1", "<math-input__token--operator>+</>", "2"]);
+    // The run is still the addressed element; the spans inside carry no address of their own.
+    expect(run.querySelectorAll("[data-path]")).toHaveLength(0);
+    expect(run.textContent).toBe("1+2");
+  });
+
+  it("sets a relation apart from an operator, so each can be spaced its own amount", () => {
+    const { field } = mount("x=1");
+    expect(nodesOf(at(field, "0"))).toEqual(["x", "<math-input__token--relation>=</>", "1"]);
+  });
+
+  it("leaves a sign that is not an operation alone", () => {
+    // `-b` is a negative, not a subtraction: nothing precedes it, so it takes no space.
+    expect(nodesOf(at(mount("-b").field, "0"))).toEqual(["-b"]);
+    // Nor does the second of two signs: the minus of `2⋅-3` belongs to the 3.
+    expect(nodesOf(at(mount("2*-3").field, "0"))).toEqual(["2", "<math-input__token--operator>⋅</>", "-3"]);
+  });
+
+  it("does treat a sign after a formula as an operation", () => {
+    // By the alternation invariant, a run after the first has a construct in front of it —
+    // which is a term, so this minus really is a subtraction.
+    const { field } = mount("\\frac{1}{2}-3");
+    expect(nodesOf(at(field, "2"))).toEqual(["<math-input__token--operator>-</>", "3"]);
+  });
+
+  it("carries the caret to and from every offset in a split run", () => {
+    const { field } = mount("1+2");
+    for (const offset of [0, 1, 2, 3]) {
+      applySelection(field, { anchor: there("0", offset), focus: there("0", offset) });
+      // Read back through the DOM the browser now holds, which is the round trip that
+      // matters: a caret that cannot be read back is a caret that jumps on the next render.
+      expect(selectionFromDom(field), `offset ${offset}`).toEqual({ anchor: there("0", offset), focus: there("0", offset) });
+    }
+  });
+
+  it("reads a position off the operator's own span", () => {
+    const { field } = mount("1+2");
+    const operator = at(field, "0").querySelector<HTMLElement>(".math-input__token--operator")!;
+    // Inside the operator's text: one character in, which is two into the run.
+    expect(positionFromDom(field, operator.firstChild!, 1)).toEqual(there("0", 2));
+    // On the span itself, before and after its only child.
+    expect(positionFromDom(field, operator, 0)).toEqual(there("0", 1));
+    expect(positionFromDom(field, operator, 1)).toEqual(there("0", 2));
+  });
+
+  it("reads a position off the run element, counting the text of the children before it", () => {
+    const { field } = mount("1+2");
+    const run = at(field, "0");
+    expect(positionFromDom(field, run, 0)).toEqual(there("0", 0));
+    expect(positionFromDom(field, run, 1)).toEqual(there("0", 1));
+    expect(positionFromDom(field, run, 2)).toEqual(there("0", 2));
+    expect(positionFromDom(field, run, 3)).toEqual(there("0", 3));
+  });
+
+  it("puts a split run back in the shape the renderer gave it", () => {
+    const { field, content } = mount("1+2");
+    const run = at(field, "0");
+    // What an IME does: writes over the whole run, spans and all.
+    run.textContent = "1+2ちょ";
+    expect(nodesOf(run)).toEqual(["1+2ちょ"]);
+    repairField(field, content);
+    // Not merely the right text — the right structure, because React is about to diff
+    // against its own last description of this run rather than against the document.
+    expect(nodesOf(run)).toEqual(["1", "<math-input__token--operator>+</>", "2"]);
+    expect(selectionFromDom(field)).toBeNull();
+    applySelection(field, { anchor: there("0", 3), focus: there("0", 3) });
+    expect(selectionFromDom(field)).toEqual({ anchor: there("0", 3), focus: there("0", 3) });
   });
 });
 

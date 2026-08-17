@@ -19,6 +19,9 @@
   --math-input-field-padding: 14px;
   --math-input-field-min-height: 60px;
   --math-input-field-font-size: 1.25rem;
+  /* TeX sets a binary operator with 4/18 em either side and a relation with 5/18. */
+  --math-input-operator-space: 0.222em;
+  --math-input-relation-space: 0.278em;
   /* The three radicals, one per height of radicand. See `.math-input__root-symbol`. */
   --math-input-root-stroke-s: 0.11em;
   --math-input-root-stroke-m: 0.15em;
@@ -187,6 +190,27 @@
 
 .math-input__field::-webkit-scrollbar {
   display: none;
+}
+
+/*
+ * An operation is set with space around it, which is what makes `2 + 3` an addition of two
+ * numbers rather than one run of ink. TeX's amounts: a medium space either side of a binary
+ * operator, a thick one either side of a relation.
+ *
+ * A font cannot do this, and not only because the sidebearings of `+` are fixed — whether a
+ * given `+` is an operation at all depends on what stands in front of it. `tokeniseRun` in
+ * render.tsx decides that and marks the ones that are; the minus of `-b` is not marked and
+ * takes no space, which is the whole reason this is a class and not a rule about characters.
+ *
+ * Margin rather than padding: the space belongs between the symbols, and a padded span would
+ * make the operator itself a wider target than the character it draws.
+ */
+.math-input__token--operator {
+  margin: 0 var(--math-input-operator-space);
+}
+
+.math-input__token--relation {
+  margin: 0 var(--math-input-relation-space);
 }
 
 /* Over the field, inside its bottom padding: visible, draggable, and worth no height. */
@@ -386,30 +410,53 @@
  */
 .math-input__slot--radicand {
   min-width: 1.2em;
-  min-height: 1.35em;
-  padding: 0.1em 0.16em 0 0.1em;
+  min-height: 1.22em;
+  padding: 0.04em 0.16em 0 0.1em;
   border-top: var(--math-input-root-stroke) solid currentColor;
 }
 
 /*
- * A cube root's index sits in the crook of the radical — where the short flick meets the
- * descent, a little over halfway down. The radical is drawn to the height of what it
- * covers, so that crook is further below the bar the taller the root stands, and the
- * index rides down with it rather than staying at the top.
+ * A root's index is a small superscript at the top left of the radical, tucked against the
+ * rising stroke — which is where mathematical typography has always put it, and what
+ * `\sqrt[3]{8}` looks like anywhere else. It is not a subscript and it does not sit under
+ * the sign.
+ *
+ * `line-height: 1` so the digit's position is the offset below and not that plus whatever
+ * slack an inherited line height happened to leave.
  */
 .math-input__slot--root-index {
   z-index: 3;
   align-self: flex-start;
   min-width: 0.45em;
   min-height: 0;
-  margin-right: -0.55em;
   padding: 0;
-  transform: translateY(0.55em);
-  font-size: 0.58em;
+  transform: translateY(0.6em);
+  font-size: 0.55em;
+  line-height: 1;
 }
 
-.math-input__root--m .math-input__slot--root-index { transform: translateY(1.15em); }
-.math-input__root--l .math-input__slot--root-index { transform: translateY(2.15em); }
+/*
+ * How far the index tucks in, which cannot be one distance for every root.
+ *
+ * This radical is one drawing stretched to the height of its radicand, so its rising stroke
+ * leans further right the taller it is asked to stand: at a given fraction of the height the
+ * stroke sits at a fixed fraction of the *width*, and the width is what changes between the
+ * three sizes. An index kerned in by a constant would touch the stroke on a short root and
+ * float a visible gap away from it on a tall one. A font's radical needs no such thing —
+ * KaTeX kerns its index in by the same 0.556em at every size — because a font stretches the
+ * middle of the glyph and leaves the hook where it was.
+ *
+ * Written as a pull on the body rather than a negative margin on the index, and that matters:
+ * `em` inside the index resolves against the index's own smaller font size, so the
+ * root-width term would come out at just over half the length it reads as.
+ */
+.math-input__root--indexed .math-input__root-body {
+  margin-left: calc(0.17em - 0.48 * var(--math-input-root-width));
+}
+
+/* The taller the root, the further down its crook is: the index follows it. */
+.math-input__root--m .math-input__slot--root-index { transform: translateY(1.35em); }
+.math-input__root--l .math-input__slot--root-index { transform: translateY(2.5em); }
 
 .math-input__slot--numerator {
   padding-bottom: 0.08em;

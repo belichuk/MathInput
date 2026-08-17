@@ -30,7 +30,7 @@ type Section = { title: string; note: string; formulas: string[] };
 const CORPUS: Section[] = [
   {
     title: "Runs, signs and spacing",
-    note: "Upright digits against italic variables, the space either side of a binary operator and a relation, and the minus sign — which is U+2212 here and a hyphen in the editor until the typography lands.",
+    note: "Operations are spaced now — a medium space either side of a binary operator, a thick one either side of a relation, and none at all around a sign that is not an operation, such as the minus of a negative. Still to come: italic variables against upright digits, and the minus drawn as U+2212 rather than a hyphen.",
     formulas: ["2+3", "x-1", "2\\cdot x+3\\cdot y", "12.5+0.75", "x=1", "a+b-c"],
   },
   {
@@ -40,8 +40,8 @@ const CORPUS: Section[] = [
   },
   {
     title: "Roots",
-    note: "One stroke shared by hook, vinculum and fraction bar; height taken from the tree rather than the page; and the index kerned into the radical's notch with room left for an empty one.",
-    formulas: ["\\sqrt{2}", "\\sqrt{x+1}", "\\sqrt[3]{8}", "\\sqrt[n]{x}", "\\sqrt{\\frac{1}{2}}", "\\sqrt{\\sqrt{2}}", "\\sqrt[3]{\\frac{x}{y}}", "\\sqrt{\\frac{x^{2}+y^{2}}{2}}"],
+    note: "The index sits where typography puts it now: a small superscript at the top left, kerned in against the rising stroke — and since this radical is one drawing stretched to its radicand, how far in that is has to follow the root's width. Heights are read off the tree, never measured off the page.",
+    formulas: ["\\sqrt{2}", "\\sqrt{x+1}", "\\sqrt[3]{8}", "\\sqrt[n]{x}", "\\sqrt{\\frac{1}{2}}", "\\sqrt{\\sqrt{2}}", "\\sqrt[3]{\\frac{x}{y}}", "\\sqrt[3]{\\frac{\\frac{1}{2}}{3}}", "\\sqrt[]{x}", "\\sqrt{\\frac{x^{2}+y^{2}}{2}}"],
   },
   {
     title: "Scripts",

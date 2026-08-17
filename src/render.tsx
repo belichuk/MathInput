@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { type BranchKey, type FormulaNode, type Path, branchesOf, encodePath, isBlank, slotPath } from "./model";
+import { type BranchKey, type FormulaNode, type Path, branchesOf, encodePath, isBlank, slotPath, stepOf } from "./model";
 
 /**
  * Renders a formula tree as real JSX. Every element carries a `data-path` holding the
@@ -14,6 +14,48 @@ import { type BranchKey, type FormulaNode, type Path, branchesOf, encodePath, is
  * function of the tree rather than something stitched into a live DOM.
  */
 export const CARET_PLACEHOLDER = "​";
+
+/**
+ * The characters mathematics sets with air around them, and how much of it.
+ *
+ * TeX puts a medium space either side of a binary operator and a thick one either side of a
+ * relation, and without that `2+3` reads as one run of ink rather than an addition. A font
+ * cannot supply it: the sidebearings of `+` are the same wherever it appears, and whether a
+ * given `+` is an operation at all depends on what is in front of it.
+ *
+ * Which is the whole subtlety here. A sign with no term before it is a sign and not an
+ * operation — the minus of `-b`, or of `2⋅-3`, belongs to the number and takes no space.
+ * `afterTerm` says whether something precedes this run in its sequence, which by the
+ * alternation invariant means a construct: the `-` of `\frac{1}{2}-3` is subtraction, while
+ * the `-` opening a numerator is a negative.
+ */
+const OPERATORS = "+-−⋅×÷:";
+const RELATIONS = "=≠<>≤≥";
+
+export type RunToken = { text: string; kind: "plain" | "operator" | "relation" };
+
+export function tokeniseRun(value: string, afterTerm: boolean): RunToken[] {
+  const tokens: RunToken[] = [];
+  let plain = "";
+  // A stand-in for the term a preceding construct is, so the first character can be judged
+  // by the same rule as every other one.
+  let previous: string | null = afterTerm ? "0" : null;
+  const flush = () => { if (plain !== "") { tokens.push({ text: plain, kind: "plain" }); plain = ""; } };
+
+  for (const character of value) {
+    const relation = RELATIONS.includes(character);
+    const operates = previous !== null && !OPERATORS.includes(previous) && !RELATIONS.includes(previous);
+    previous = character;
+    if (relation || (operates && OPERATORS.includes(character))) {
+      flush();
+      tokens.push({ text: character, kind: relation ? "relation" : "operator" });
+      continue;
+    }
+    plain += character;
+  }
+  flush();
+  return tokens;
+}
 
 const SLOT_MODIFIER: Record<string, string> = {
   "sqrt:content": "radicand",
@@ -97,9 +139,24 @@ function renderNode(node: FormulaNode, path: Path): ReactNode {
   const key = encodePath(path);
   const slot = (branch: BranchKey) => <Slot key={branch} node={node} branch={branch} path={path} />;
   switch (node.type) {
-    case "text":
-      // Rendered as an element so it has an address; React writes the run as its only text child.
-      return <span key={key} className="math-input__text" data-path={key} data-blank={node.value === "" ? "" : undefined}>{node.value === "" ? CARET_PLACEHOLDER : node.value}</span>;
+    case "text": {
+      /**
+       * Rendered as an element so it has an address. A run with nothing to space is still
+       * one text node, exactly as before — which keeps the common case unchanged and its
+       * translation back into a model position a single step. A run holding an operation is
+       * split at each side of it, and the addressed element is still the run: the spans
+       * inside carry no address of their own, and `selection.ts` walks across them.
+       */
+      const tokens = node.value === "" ? [] : tokeniseRun(node.value, stepOf(path).index > 0);
+      const plain = tokens.length === 1 && tokens[0].kind === "plain";
+      return <span key={key} className="math-input__text" data-path={key} data-blank={node.value === "" ? "" : undefined}>
+        {node.value === "" || plain
+          ? (node.value === "" ? CARET_PLACEHOLDER : node.value)
+          : tokens.map((token, at) => (token.kind === "plain"
+            ? token.text
+            : <span key={at} className={`math-input__token math-input__token--${token.kind}`}>{token.text}</span>))}
+      </span>;
+    }
     case "sqrt":
       // A cube root is the same drawing with its index beside it, which is why the index
       // is the root's own child rather than the body's: it sits outside the radical.

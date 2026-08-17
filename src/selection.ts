@@ -1,5 +1,5 @@
-import { type CaretPosition, type FormulaNode, type Path, type SelectionRange, decodePath, encodePath, textAt } from "./model";
-import { CARET_PLACEHOLDER } from "./render";
+import { type CaretPosition, type FormulaNode, type Path, type SelectionRange, decodePath, encodePath, stepOf, textAt } from "./model";
+import { CARET_PLACEHOLDER, tokeniseRun } from "./render";
 
 /**
  * The only place that touches Range and Selection.
@@ -18,13 +18,73 @@ const isTextRun = (element: Element | null | undefined): element is HTMLElement 
 const runLength = (span: HTMLElement): number => (span.dataset.blank === undefined ? span.textContent?.length ?? 0 : 0);
 const elementFor = (field: HTMLElement, path: Path): HTMLElement | null => field.querySelector<HTMLElement>(`[data-path="${encodePath(path)}"]`);
 
+/**
+ * A run is one addressed element, and its text may be spread across more than one node
+ * inside it.
+ *
+ * Typography splits a run at each side of an operation so that `+` can be given the space
+ * an operation is set with, which means the offsets a model position counts — characters of
+ * the run, from its start — are no longer offsets into a single text node. These two
+ * functions are the whole of that translation, in both directions, and they are the reason
+ * nothing above this line has to know about it. A run with nothing to space still holds one
+ * text node and both functions reduce to what they were.
+ */
+const textNodesIn = (element: Element): Text[] => {
+  const nodes: Text[] = [];
+  for (const child of element.childNodes) {
+    if (child.nodeType === Node.TEXT_NODE) nodes.push(child as Text);
+    else if (child instanceof Element) nodes.push(...textNodesIn(child));
+  }
+  return nodes;
+};
+
+/** The node and local offset a model offset into this run names. */
+function pointInRun(run: HTMLElement, offset: number): DomPoint {
+  let remaining = Math.max(0, offset);
+  let last: Text | null = null;
+  for (const node of textNodesIn(run)) {
+    // `<=` so a position at a boundary is the end of the node before it rather than the
+    // start of the one after: the same place on screen, named the same way every time.
+    if (remaining <= node.length) return { node, offset: remaining };
+    remaining -= node.length;
+    last = node;
+  }
+  return last ? { node: last, offset: last.length } : { node: run, offset: 0 };
+}
+
+/** The reverse: what model offset into the run a DOM point inside it stands for. */
+function offsetInRun(run: HTMLElement, node: Node, offset: number): number {
+  if (run.dataset.blank !== undefined) return 0;
+  const nodes = textNodesIn(run);
+  if (node.nodeType === Node.TEXT_NODE) {
+    let total = 0;
+    for (const candidate of nodes) {
+      if (candidate === node) return total + Math.min(offset, candidate.length);
+      total += candidate.length;
+    }
+    return total;
+  }
+  // An element: its offset counts children, so measure the text of the ones before it.
+  const within = [...node.childNodes].slice(0, offset).reduce((sum, child) => sum + (child.textContent?.length ?? 0), 0);
+  if (node === run) return within;
+  let before = 0;
+  for (const candidate of nodes) {
+    if (node.contains(candidate)) break;
+    before += candidate.length;
+  }
+  return before + within;
+}
+
 function domPointFor(field: HTMLElement, position: CaretPosition): DomPoint | null {
   const element = elementFor(field, position.path);
   if (!element) return null;
-  const run = element.firstChild;
-  if (!run || run.nodeType !== Node.TEXT_NODE) return { node: element, offset: 0 };
-  if (element.dataset.blank !== undefined) return { node: run, offset: 0 };
-  return { node: run, offset: Math.max(0, Math.min(position.offset, run.textContent?.length ?? 0)) };
+  // A blank run draws one zero-width placeholder, which is no part of the model's text, so
+  // the only position in it is before that character.
+  if (element.dataset.blank !== undefined) {
+    const placeholder = textNodesIn(element)[0];
+    return { node: placeholder ?? element, offset: 0 };
+  }
+  return pointInRun(element, position.offset);
 }
 
 /** Writes a model selection to the document. Returns whether anything actually moved. */
@@ -43,7 +103,9 @@ export function positionFromDom(field: HTMLElement, node: Node | null, offset: n
   if (!node || !(node === field || field.contains(node))) return null;
   const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element);
   const owner = element?.closest<HTMLElement>("[data-path]");
-  if (isTextRun(owner)) return { path: decodePath(owner.dataset.path!), offset: Math.min(offset, runLength(owner)) };
+  // Anywhere inside a run — its own text node, or one of the spans typography split it into,
+  // or the run element itself — is a position in that run, counted from its start.
+  if (isTextRun(owner)) return { path: decodePath(owner.dataset.path!), offset: offsetInRun(owner, node, offset) };
 
   // Landed on a slot, a formula or the field itself: take the run on whichever side the offset names.
   const container = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element);
@@ -163,8 +225,37 @@ export function caretScrollOffset(field: HTMLElement): number {
  */
 export function repairField(field: HTMLElement, content: FormulaNode[]): void {
   for (const span of field.querySelectorAll<HTMLElement>(TEXT_RUN)) {
-    const node = textAt(content, decodePath(span.dataset.path!));
-    const expected = node === null ? "" : node.value === "" ? CARET_PLACEHOLDER : node.value;
-    if (span.textContent !== expected) span.textContent = expected;
+    const path = decodePath(span.dataset.path!);
+    const node = textAt(content, path);
+    const value = node === null ? "" : node.value;
+    const expected = value === "" ? CARET_PLACEHOLDER : value;
+    if (span.textContent === expected) continue;
+    rewriteRun(span, value, stepOf(path).index > 0);
   }
+}
+
+/**
+ * Puts a run's text back **in the shape the renderer would have given it**, which matters
+ * more than it looks.
+ *
+ * React does not diff against the document; it diffs its own previous description of it and
+ * applies the difference. So a run written back as one text node, when React last drew it as
+ * a run split either side of an operation, leaves React addressing spans that are no longer
+ * there — and the next keystroke applies its changes to nothing. Writing the same structure
+ * the renderer writes is what keeps the two in step, and it is why the tokeniser is shared
+ * rather than reimplemented here.
+ */
+function rewriteRun(span: HTMLElement, value: string, afterTerm: boolean): void {
+  const tokens = value === "" ? [] : tokeniseRun(value, afterTerm);
+  if (tokens.length <= 1 && tokens.every((token) => token.kind === "plain")) {
+    span.textContent = value === "" ? CARET_PLACEHOLDER : value;
+    return;
+  }
+  span.replaceChildren(...tokens.map((token) => {
+    if (token.kind === "plain") return token.text;
+    const marked = span.ownerDocument.createElement("span");
+    marked.className = `math-input__token math-input__token--${token.kind}`;
+    marked.textContent = token.text;
+    return marked;
+  }));
 }
