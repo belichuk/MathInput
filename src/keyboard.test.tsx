@@ -71,6 +71,33 @@ it("writes and edits x = (1+√2)/3 from the keyboard alone", () => {
 });
 
 /**
+ * What a copy takes out of the field, which is the sixth of the release's behaviour changes and
+ * the one that was easiest to miss: it is a consequence of the typography rather than a decision
+ * of its own, so nothing in the work that caused it mentions it.
+ *
+ * A browser's own copy takes the text of the element, and the element now draws a real minus. The
+ * value does not change — the model keeps the hyphen that was typed — but text pasted out of the
+ * field into something that compares strings is not the text 0.3.7 gave.
+ */
+describe("what leaves the field on the clipboard", () => {
+  it("draws U+2212 where the value keeps a hyphen", () => {
+    const { field, latex, type } = editor();
+    type("5-3");
+    expect(latex()).toBe("5-3");
+    expect(field.textContent).toBe("5−3");
+    // Different characters, and no string comparison anywhere treats them as equal.
+    expect(field.textContent).not.toBe(latex());
+  });
+
+  it("carries the caret's zero-width placeholder along with it, as it always has", () => {
+    // `aria-hidden` keeps this out of what a screen reader says and has never had anything to do
+    // with the clipboard. Recorded as a test so it is a known property rather than a surprise.
+    const { field } = editor("\\frac{1}{}");
+    expect(field.textContent).toContain("​");
+  });
+});
+
+/**
  * Composition over a run that typography has split.
  *
  * The one seam of the tokenised-run work that nothing else covers, and the constraint it sits

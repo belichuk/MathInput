@@ -64,12 +64,28 @@ Everything the review said should be "declared rather than special-cased" become
 single table in the model layer, consumed generically by traversal, transformation, exchange,
 presentation and input.
 
+> **Corrected in M2 (0.5.0): the insertion policy is per *trigger*, not per construct.**
+>
+> `entry` and `adopts` are written below as columns of the construct, and they cannot be. `/`
+> adopts the term in front of the caret and waits in the *denominator*; the toolbar's fraction
+> button adopts nothing and waits in the *numerator*. Same construct, opposite behaviour — so
+> the behaviour belongs to the thing that asked for the construct, not to the construct.
+>
+> What shipped: `TOOL_INSERTIONS` and `KEY_INSERTIONS` beside `CONSTRUCTS` in `registry.ts`,
+> each row saying what its trigger captures and where it leaves the caret, including a
+> `caretWithoutTerm` fallback for when there was nothing to capture. Only the *adopted slot* —
+> where a captured term lands, which really is a property of the construct — stayed on the
+> construct's own row, as `adopted`.
+>
+> Anything built on the sketch below as written would have to decide this again, in the same
+> wrong place. M5's `opname` and `bigop` rows are the next to touch it.
+
 ```ts
 interface ConstructSpec {
   kind: Kind;
   slots: readonly SlotDef[] | { indexed: true };    // visual order = array order
-  entry: { adopted: SlotRef; empty: SlotRef };      // caret landing (existing behaviour, now data)
-  adopts: 'termBefore' | 'wrapAfter' | 'none';      // existing capture mechanism, now data
+  entry: { adopted: SlotRef; empty: SlotRef };      // ← per trigger; see the correction above
+  adopts: 'termBefore' | 'wrapAfter' | 'none';      // ← per trigger; see the correction above
   vertical?: readonly [SlotRef, SlotRef][];         // top→bottom pairs, drives ↑/↓
   tokens?: readonly string[];                       // typed names that create it: ['sqrt','√']
   primitive: Primitive;                             // which renderer draws it (§3)
@@ -83,7 +99,7 @@ type SlotRef = string | number;                     // name — or index, for in
 
 The full 0.5.0 registry, existing constructs restated in the new terms:
 
-| kind | data | slots (visual order) | primitive | entry adopted/empty | vertical | tokens | LaTeX write |
+| kind | data | slots (visual order) | primitive | entry adopted/empty *(per trigger — see the correction above)* | vertical | tokens | LaTeX write |
 |---|---|---|---|---|---|---|---|
 | `root` | — | `index?`, `radicand` | radical | radicand / radicand | index↕radicand (partial) | `sqrt`, `√` | `\sqrt[i]{r}` |
 | `frac` | — | `num`, `den` | stack | den / num | num↕den | — | `\frac{n}{d}` |
@@ -355,8 +371,16 @@ literal characters — one rule, matches every IDE's autocorrect-undo instinct.
 - **Motion**: nothing animates on the keystroke path; toolbar auto-hide and placeholder fades
   ≤ 120 ms and gated on `prefers-reduced-motion`.
 - **Paste**: run pasted text through the tolerant reader first (it exists for this); if it
-  parses, paste structure; else insert literally. `1/2+3` pasted becomes a fraction — the demo
-  moment.
+  parses, paste structure; else insert literally. Pasting **LaTeX** is what builds structure —
+  `\frac{1}{2}+3` arrives as a fraction and three.
+
+  > **Corrected after M4 (0.5.0).** This bullet used to read "`1/2+3` pasted becomes a fraction
+  > — the demo moment", and that is not achievable as stated. `/` is not LaTeX: it is a *key*
+  > the editor answers, and `parse.ts` has no `/` arm and should not grow one, since the reader's
+  > job is to read what `serialize.ts` writes. Pasting LaTeX is both what works and the more
+  > useful behaviour — it is how a formula moves between this field and KaTeX, a textbook, or
+  > another copy of the editor. Left uncorrected, this line would send the next implementer at a
+  > target that cannot be hit.
 - **Incompleteness**: on blur, empty *required* slots tint amber via a state attribute the
   renderer already knows how to emit; theme-overridable, off by default *(decision §7)*.
 - **A11y (from the review, shipping here)**: spoken-math writer as each row's accessible

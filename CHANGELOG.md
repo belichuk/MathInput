@@ -8,11 +8,15 @@ The release where a construct stopped being knowledge spread across seven files 
 row in a table — and where a formula started looking like mathematics rather than like
 characters in a row.
 
-Two halves. Everything about how the field *works* — how it is built, what a keystroke costs,
-how much of it there is — changed without changing what it does at all. Everything about how
-a formula *looks* changed a great deal, and deliberately: operations are spaced, letters are
-italic, digits upright, a minus is a minus, and roots are weighed by what they cover. Writing
-a formula is what it always was; reading one should now look like mathematics.
+Three halves, if that were allowed. Everything about how the field *works* — how it is built,
+what a keystroke costs, how much of it there is — changed without changing what it does at all.
+Everything about how a formula *looks* changed a great deal, and deliberately: operations are
+spaced, letters are italic, digits upright, a minus is a minus, and roots are weighed by what
+they cover. And a formula can now be *heard*: each row is described in words written from the
+tree, because the structure a fraction has is drawn, and a drawing reads as nothing.
+
+Writing a formula is what it always was; reading one should now look like mathematics, and
+listening to one should be possible at all.
 
 ### Changed
 
@@ -24,7 +28,7 @@ a formula is what it always was; reading one should now look like mathematics.
 - **Operations are set with space around them.** `2+3` was one run of ink; it is `2 + 3` now, with the amounts mathematics has always used — a medium space either side of a binary operator, a thick one either side of a relation. A font cannot do this and neither can a stylesheet on its own, because whether a given `+` is an operation at all depends on what stands in front of it: the minus of `-b` is a negative and takes no space, while the minus of `b^{2}-4ac` is a subtraction and does. A run is split either side of the signs that are operations and left as one piece when there are none, so the overwhelming majority of runs are drawn exactly as before. `--math-input-operator-space` and `--math-input-relation-space` set the two amounts. Nothing about the document changed: the model, the LaTeX and every offset in it are what they were.
 - **A root's index sits where it belongs** — a small superscript at the top left of the radical, kerned in against the rising stroke, rather than adrift below and to the left of it. How far in it kerns follows the root's width, because this radical is one drawing stretched to the height of its radicand: its stroke leans further right the taller it stands, so an index tucked in by a constant would touch the sign on a short root and float away from it on a tall one.
 - **Letters are set italic and digits upright**, which is the oldest convention in mathematical setting and the one that says at a glance which `2` in `x2` is the number. Figures are tabular, so a column of working lines up. A run that is all one class carries it on the run itself and keeps its single text node, so `x` and `12.5` cost no more to address than they did before any of this.
-- **A minus is drawn as one.** A keyboard has a hyphen and mathematics has a minus, and they are different characters: U+2212 is drawn to the width of a plus and sits at the same height, where a hyphen is short, low, and reads as a word-break. Only the drawing changes — the model keeps the hyphen that was typed, the LaTeX is unchanged, and every offset still counts the same characters. A minus pasted in from elsewhere becomes the hyphen, so a document only ever holds one of the two.
+- **A minus is drawn as one.** A keyboard has a hyphen and mathematics has a minus, and they are different characters: U+2212 is drawn to the width of a plus and sits at the same height, where a hyphen is short, low, and reads as a word-break. Only the drawing changes — the model keeps the hyphen that was typed, the LaTeX is unchanged, and every offset still counts the same characters. A minus pasted in from elsewhere becomes the hyphen, so a document only ever holds one of the two. **One consequence worth knowing:** the browser's own copy takes what is *drawn*, so text copied out of the field by hand now carries `−` where 0.3.7 gave `-`. The value your `onChange` receives is unaffected; only a hand copy pasted somewhere that compares strings — an answer key, a marking script — sees the difference.
 - **A script two levels down stops shrinking.** `0.72em` on each script compounded, so `x^{y^{z^{w}}}` in a 24px field was setting text at 6px. Scripts follow the ladder TeX uses — full size, 0.72, 0.55 — and then hold, and never go below 11px however small the field is.
 - Radicals stand a little lower over what they cover, which is closer to how the same expression is set anywhere else.
 - **One thickness for every rule the component draws.** A fraction's bar was 1.5px and did not change when the field's font size did; it is the same value the bar over a radicand and the radical's own stroke are drawn from, floored at a pixel so a hairline never rounds away to nothing. Hook and vinculum are that value exactly, which is what makes them one line where they meet; a radical carries rather more of it than a fraction bar does, because this one is drawn at a single thickness throughout where a typeset radical is a glyph that thickens along its diagonal.
@@ -47,6 +51,11 @@ a formula is what it always was; reading one should now look like mathematics.
 - **The caret's zero-width placeholder is out of the accessibility tree.** A blank slot draws one so the caret has somewhere with geometry to stand; it is no part of what the field says, and a screen reader reading an empty row should find it empty.
 - Every control has 44 pixels of touch target, without any of them being drawn 44 pixels across.
 
+### Deprecated
+
+- **`autoHideToolbar`, `showOperators` and `showNavigation` are one `toolbar` prop.** They were a prop each for the first three answers to one question, with no room in that shape for a fourth — so `toolbar={{ autoHide, constructs, operators, navigation }}` now also turns the formula group off, and `toolbar={false}` removes the strip entirely. **The old three still work**, mapped onto the new one and warning once in a development build; they go in 0.7.0. Where both speak about the same group the new one answers, and where the new one is silent the old one is still heard, so a half-migrated host is coherent. [MIGRATING-0.5.0.md](MIGRATING-0.5.0.md) has a codemod.
+- **`--math-input-control-hover-border` is `--math-input-control-hover-border-color`**, which says what it sets the way every other colour here does. Both names are read — the new one first — until 0.7.0. The README now also states the naming rule the rest of the properties follow: `--math-input-` and then what it applies to, nothing for the component as a whole, `field-` for the writing surface, `control-` for the buttons, `root-` for the radical.
+
 ### Removed
 
 - **Six radical custom properties are two, and one of those is now about every rule.** `--math-input-rule` sets the thickness of a fraction's bar, the bar over a radicand and the radical itself; `--math-input-root-width` sets how far a radical reaches before its bar begins, over a single line of writing.
@@ -58,6 +67,20 @@ a formula is what it always was; reading one should now look like mathematics.
 - `npm run bench`, which counts what a keystroke costs in layout rather than timing it: the accessors the code reads the page through are wrapped and counted in order, so *reads after a write* — the ones a browser has to lay the page out again to answer — are counted separately from reads that are free. The number is exact, identical on every machine, and asserted in the ordinary test suite over three fixtures: a two-character answer, a fifty-row worksheet, and one row eight constructs deep.
 - A typography reference page in the demo, `katex-reference.html`: 36 expressions drawn by the component beside the same LaTeX set by KaTeX, with a control that superimposes the two so a difference of a pixel is visible. KaTeX is a devDependency of the demo and nothing else.
 - Tests for the DOM bridge, which had none — the seam the whole editor rests on, and the one place a mistake is invisible from either side.
+- **A formula in words, for anyone who cannot see it drawn.** What is in the field is `1`, `2`, `x` in boxes; the structure that makes them a fraction raised to a power is drawn, and a drawing reads as nothing at all. Each row now carries a description written from the tree — `\frac{1}{2}x^{2}=\sqrt{16}` is read as *"the fraction 1 over 2, end fraction x squared equals the square root of 16, end root"* — and it says where a fraction and a root *end*, because that is the whole job the drawing does and the one part a reader cannot infer. It is a plain reading rather than MathSpeak or any other standard, and it is English: the strings are all in one module, which is what a locale option would replace.
+- **Moving the caret into a slot is announced.** Entering a denominator is a fact a sighted user gets from the drawing and nobody else was told: a polite live region says *"in the denominator"* when the caret arrives somewhere new, and says nothing while it stays there. It reads the selection in the model — nothing is measured on the page.
+- `√` and `∛` open a square root and a cube root the way `(` opens brackets. They are not on most physical keyboards, but they are on every soft keyboard's symbol page, and they survive dictation, autocorrect and paste — and until now no key opened a root at all.
+
+### Known limitations
+
+- **A row cannot be split or merged.** `Enter` adds a row after the one you are in rather than splitting it at the caret, and `Backspace` at the start of a row does not join it to the row above. This is unchanged from earlier versions and is not a regression of the new ↑ and ↓ — it is the next piece of work on rows, and it is 0.6.0's. One consequence to know when using the new `toolbar={false}`: the remove-row control lives in the toolbar, so with no toolbar and no merge there is no way to remove a row. Pair `toolbar={false}` with a single-row field until that changes.
+- **Typing `sqrt` does not become √.** Token recognition moves to 0.6.0, where it lands together with the named functions, absolute value, the Greek letters and the relations — one mechanism, shipped once.
+
+### A note on the versions before this one
+
+`0.3.5`, `0.3.6` and `0.3.7` were tagged internally and never published; npm goes from `0.3.3` to
+`0.5.0`. Everything in them is in this release. Their entries below are kept because the work is
+described there and this changelog is a record of the code, not of the registry.
 
 ## 0.3.7 — 2026-08-16
 
