@@ -431,17 +431,19 @@ The repository is laid out so that the root is about the package and the demo ow
 
 ```
 src/            the component, and the pure modules it is built from
-demo/           the style laboratory: page, entry, index.html, its own vite.config.ts
+demo/           the style laboratory: page, entry, index.html, its own vite.config.ts —
+                and capture.tsx, the page the images in this file are photographed from
 scripts/        build helpers
 docs/images/    the screenshots in this file
 vite.config.ts  builds and tests the package — the default config is the product
 tsconfig.json   type-checks everything; tsconfig.build.json emits what ships
 ```
 
-The demo — sliders and colour pickers for the CSS variables above, switches for the toolbar and for `disabled`, and the live LaTeX value — is for developing against and for a first look. It is not part of what ships: `files` in `package.json` is `dist` alone, and `npm run build:demo` puts the site in `dist-demo/` if you want to host it.
+The demo — sliders and colour pickers for the CSS variables above, switches for the toolbar and for `disabled`, and the live LaTeX value — is for developing against and for a first look. It is not part of what ships — `files` in `package.json` is `dist` and the two documents beside it — and `npm run build:demo` puts the site in `dist-demo/` if you want to host it.
 
 | `src/` file | Responsibility |
 | --- | --- |
+| `registry.ts` | What each construct *is*, declared once: its slots and their order, what it adopts, how it is drawn, how tall it stands, the LaTeX it is written as. Every other file below reads it. |
 | `model.ts` | The formula tree: node types, the alternating-array invariant, path arithmetic. |
 | `parse.ts`, `serialize.ts` | LaTeX in and out. |
 | `caret.ts` | Caret movement over the tree. |
@@ -449,11 +451,12 @@ The demo — sliders and colour pickers for the CSS variables above, switches fo
 | `render.tsx` | The tree as JSX, with each element tagged by the position it stands for. |
 | `selection.ts` | The only code that touches DOM `Range`/`Selection`. |
 | `history.ts` | Undo/redo. |
+| `speech.ts` | The formula in words, for the description each row carries. |
 | `MathInput.tsx` | Props, state, events, and the chrome around the rows. |
 
 `CHANGELOG.md` records what changed in each version, and what is deliberately still open.
 
-Everything except `selection.ts` is pure and directly tested — the parser's fallbacks, a round-trip property corpus, caret navigation, and each editing behaviour above. Tests also assert the tree's invariant and a valid caret after *every* reduction, so a reducer cannot quietly leave the document in a state the rest of the editor assumes away. DOM range mapping, pointer targeting and IME are verified in a browser instead.
+Everything but `selection.ts` is pure, and all of it is directly tested — the parser's fallbacks, a round-trip property corpus, caret navigation, every editing behaviour above, and every row of the registry against the same set of properties. Tests also assert the tree's invariant and a valid caret after *every* reduction, so a reducer cannot quietly leave the document in a state the rest of the editor assumes away. `selection.ts` is the one impure module and it has its own suite, jsdom standing in for the browser; what jsdom cannot answer is anything that needs real layout — where a click lands in a line of text — and that is checked in a browser.
 
 ## License
 
