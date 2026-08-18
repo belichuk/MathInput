@@ -1,5 +1,13 @@
 # MathInput — Architecture
 
+> **Written before 0.5.0, and kept for §9.** The invariants in §9 are what the whole codebase is
+> written against and are unchanged. The rest of this document describes the component as it was
+> at 0.3.7: it predates the construct registry, so §3's layer map and §4's per-layer descriptions
+> do not mention `registry.ts`, `speech.ts` or `caret.ts`, and §10's inventory and weights are
+> superseded by `npm run size`. Where this document and the code disagree about how a construct
+> is declared, the code is right and `src/registry.ts` is the place to read. `Plan.md` carries
+> what happens next.
+
 A conceptual description of how the component is put together: what it does, its layers, the
 direction data moves through them, the rules that keep the parts from having to know about each
 other, and what each part currently weighs.
