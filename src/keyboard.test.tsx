@@ -71,6 +71,24 @@ it("writes and edits x = (1+√2)/3 from the keyboard alone", () => {
 });
 
 /**
+ * The example the README opens with, and the sequence the recording in it types.
+ *
+ * A README is a promise, and this one shows a specific set of keystrokes producing a specific
+ * value. Nothing else in the suite would notice if that stopped being true — the acceptance test
+ * above writes a different formula — so the promise is held here rather than by whoever next
+ * reads the front page carefully.
+ */
+it("writes what the README says it writes", () => {
+  const { type, latex } = editor();
+
+  // The space bar arrives as `beforeinput`, not as a keydown — which is what makes a phone's
+  // space bar and a desktop's the same key, and why it is typed here rather than pressed.
+  type("1/2 x^2 +\u221a16 =12");
+
+  expect(latex()).toBe("\\frac{1}{2}x^{2}+\\sqrt{16}=12");
+});
+
+/**
  * What a copy takes out of the field, which is the sixth of the release's behaviour changes and
  * the one that was easiest to miss: it is a consequence of the typography rather than a decision
  * of its own, so nothing in the work that caused it mentions it.

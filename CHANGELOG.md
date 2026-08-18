@@ -71,6 +71,13 @@ listening to one should be possible at all.
 - **Moving the caret into a slot is announced.** Entering a denominator is a fact a sighted user gets from the drawing and nobody else was told: a polite live region says *"in the denominator"* when the caret arrives somewhere new, and says nothing while it stays there. It reads the selection in the model — nothing is measured on the page.
 - `√` and `∛` open a square root and a cube root the way `(` opens brackets. They are not on most physical keyboards, but they are on every soft keyboard's symbol page, and they survive dictation, autocorrect and paste — and until now no key opened a root at all.
 
+### Documentation
+
+- **The README's pictures were of the wrong version.** They were taken at 0.3.x, so the one thing this release is loudest about — operations spaced, letters italic, digits upright, a real minus, radicals weighed by what they cover — was contradicted by the first image on the page. They are retaken, and the page now opens with a recording of a formula being typed rather than a still of one already written: `1/2`, space, `x^2`, space, `+√16`, space, `=12`. What that sequence produces is asserted by a test, so the front page's promise fails the build if it stops being true.
+- A worked example at the head of *What can be typed*, a picture of a quadratic formula where the editing rules are explained — every box in it is a slot the caret can be put in — and a contents line at the top.
+- One paragraph in *Editing formulas in detail* still described `=` escaping all the way to the row, which is the behaviour this release replaced. It now says what the editor does.
+- `demo/capture.tsx` is where those images come from: one scene per page, at the field's own width, so a capture of the viewport is a capture of the component and no image is a screenshot of the demo's furniture. It is not built into the demo — a page that exists to be photographed should not be shipped as though somebody might visit it.
+
 ### Known limitations
 
 - **A row cannot be split or merged.** `Enter` adds a row after the one you are in rather than splitting it at the caret, and `Backspace` at the start of a row does not join it to the row above. This is unchanged from earlier versions and is not a regression of the new ↑ and ↓ — it is the next piece of work on rows, and it is 0.6.0's. One consequence to know when using the new `toolbar={false}`: the remove-row control lives in the toolbar, so with no toolbar and no merge there is no way to remove a row. Pair `toolbar={false}` with a single-row field until that changes.
@@ -202,6 +209,13 @@ The editor is rebuilt on a document model. Each row is now a typed formula tree 
 - A selection spanning two slots really deletes, trimming each slot and keeping the formula — half a fraction is not a thing.
 - A row no longer changes height when its formula outgrows it. A native scrollbar takes its own height out of the row, which made a row grow by 11px and shrink again on the next backspace.
 - The placeholder no longer pushes the caret's text run onto a second line, and clicking past a formula's edge continues after it rather than landing inside its last slot.
+
+### Documentation
+
+- **The README's pictures were of the wrong version.** They were taken at 0.3.x, so the one thing this release is loudest about — operations spaced, letters italic, digits upright, a real minus, radicals weighed by what they cover — was contradicted by the first image on the page. They are retaken, and the page now opens with a recording of a formula being typed rather than a still of one already written: `1/2`, space, `x^2`, space, `+√16`, space, `=12`. What that sequence produces is asserted by a test, so the front page's promise fails the build if it stops being true.
+- A worked example at the head of *What can be typed*, a picture of a quadratic formula where the editing rules are explained — every box in it is a slot the caret can be put in — and a contents line at the top.
+- One paragraph in *Editing formulas in detail* still described `=` escaping all the way to the row, which is the behaviour this release replaced. It now says what the editor does.
+- `demo/capture.tsx` is where those images come from: one scene per page, at the field's own width, so a capture of the viewport is a capture of the component and no image is a screenshot of the demo's furniture. It is not built into the demo — a page that exists to be photographed should not be shipped as though somebody might visit it.
 
 ### Known limitations
 

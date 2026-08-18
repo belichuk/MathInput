@@ -1,0 +1,4 @@
+/* Nothing but the component: no page, no chrome, no margin to crop out afterwards. */
+html, body { margin: 0; padding: 0; background: #ffffff; }
+body { font-family: ui-sans-serif, system-ui, sans-serif; }
+#root { padding: 16px; }

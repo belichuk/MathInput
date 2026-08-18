@@ -6,7 +6,11 @@
 
 A React field for writing mathematics the way it is written on paper — one formula per line, fractions stacked, roots drawn over what they cover — that hands your app KaTeX-compatible LaTeX as the value. No runtime dependencies beyond React: no Tailwind, no MathJax, no editor framework. It does not evaluate or check what is written; it is an input, not a calculator.
 
-![The field, with its formula tools, showing ½x² + √16 = 12](https://raw.githubusercontent.com/belichuk/MathInput/main/docs/images/field.png)
+![Typing ½x² + √16 = 12: the fraction stacks as it is typed, the power raises, and the root draws itself over what it covers](https://raw.githubusercontent.com/belichuk/MathInput/main/docs/images/typing.gif)
+
+Every key in that recording is an ordinary one: `/` opened the fraction, `^` the power, `√` the root, and `Space` stepped out of each. What `onChange` handed back is `\frac{1}{2}x^{2}+\sqrt{16}=12` — ready to store, mark, or render with KaTeX.
+
+**Contents** · [Install](#install) · [Quick start](#quick-start) · [Props](#props) · [What can be typed](#what-can-be-typed) · [Styling](#styling) · [The value](#the-value) · [Recipes](#recipes) · [Accessibility](#accessibility) · [Migrating to 0.5.0](MIGRATING-0.5.0.md)
 
 ## Install
 
@@ -39,7 +43,7 @@ export function AnswerField() {
 }
 ```
 
-`value` is a plain string — `\frac{1}{2}x^{2}+\sqrt{16}=12` for the screenshot above — ready to store, mark, or render with KaTeX.
+`value` is a plain string of LaTeX, one line per row. There is no editor instance to hold, no document object to convert, and nothing to serialise: what you store is what `onChange` gave you, and what you pass back to `value` is what the field draws.
 
 ## Props
 
@@ -58,6 +62,8 @@ Everything is optional; `<MathInput />` on its own is a working uncontrolled fie
 | `aria-label` | `string` | `"Math editor"` | The editor's accessible name; each row is named from it too. |
 
 ### The toolbar
+
+![The field with its tools: square root, cube root, fraction, power and brackets, then the four operators, then the two arrows](https://raw.githubusercontent.com/belichuk/MathInput/main/docs/images/field.png)
 
 One prop describes the whole strip. Every key is optional and every default is on:
 
@@ -118,6 +124,14 @@ They then sit on the row the caret last used, on the first row until the field i
 The formula still renders and can be selected and copied; only editing stops.
 
 ## What can be typed
+
+**A worked example**, and it is the one in the recording at the top. Type
+
+```
+1/2  ␣  x^2  ␣  +√16  ␣  =12
+```
+
+and the field holds `\frac{1}{2}x^{2}+\sqrt{16}=12`. Each `Space` steps out of the slot the key before it opened — out of a denominator, out of an exponent, out from under a radical — so a whole expression is written without once reaching for the mouse or an arrow key.
 
 The toolbar comes in three groups, divided: the formulas that have to be built — a square root, a cube root, a fraction, a power, brackets — then the four operators `+` `−` `:` `⋅`, then the two arrows that move the caret. Every button does what the matching key does, so a field can be filled in on a tablet with no keyboard at all. Each group is on by default and switched off on its own through `toolbar`. Subscripts have no button — `_` writes them. The rest is the keyboard:
 
@@ -380,13 +394,15 @@ The power tool does the same as `^` when there is a term behind the caret, and o
 
 A formula opened in front of written work wraps that work instead of pushing it aside. Roots and fractions behave like the brackets above: the slot the caret was going to land in takes the term in front of it, a whole formula included, so `(` typed in front of `\frac{1}{2}` brackets the fraction rather than sitting beside it. Only that one term is taken, leaving the rest of the row alone: `|10+20` with the root button gives `\sqrt{10}+20`. `/` can take a term on each side, `10|5` becoming `\frac{10}{5}`. Where nothing is written in front of the caret the formula opens empty.
 
-The editor treats a formula as a navigable object rather than plain text:
+![A quadratic formula in the field: a fraction whose numerator holds a root, whose radicand holds a power](https://raw.githubusercontent.com/belichuk/MathInput/main/docs/images/nested.png)
+
+Every box in that formula is a slot the caret can be put in — by clicking it, by `Tab`, or by the arrow keys. The editor treats a formula as a navigable object rather than plain text:
 
 - `→` and `←` step through every slot of a formula in reading order — a power's base before its exponent, a numerator before its denominator, a root's index before its radicand — and then out to the position after (or before) the whole formula.
 - `Space` steps *past* what is in front of the caret rather than into it: first the rest of what is being written, then over a whole formula standing next to it, then out of the slot itself — one thing per press, the way `Backspace` removes one thing per press. A slot left this way hands the caret to the *end* of the next one, since what is written there is written: `\frac{1|}{2}` becomes `\frac{1}{2|}`, and the next press leaves the fraction. So `1/2` typed straight through, then `Space`, carries on after the fraction rather than inside it, and a root or a power is left the same way. Nothing is written by the key, at the end of the row it does nothing, and a space in pasted text is still dropped.
 - Clicking inside any slot places the caret in that part of the formula.
 - Clicking past a formula's edge, or pressing `End`, continues after it.
-- Typing `=` comes out to the row before writing itself, so it always separates whole formulas: pressed deep inside `\frac{1}{\frac{1}{2}}` it lands after the outer fraction, never inside a slot, and `10^=2` cannot be typed at all.
+- Typing `=` comes out of whatever cannot hold a relation and stops at the first thing that can. A numerator, a radicand and an exponent cannot, so `10^=2` cannot be typed at all and `=` pressed deep inside `\frac{1}{\frac{1}{2}}` lands after the outer fraction. Brackets *can*, because `\left(x=1\right)` is a sentence: `=` typed inside them stays where it was typed. Which constructs can hold one is declared per construct rather than decided key by key.
 - `Backspace` removes the formula immediately behind the caret as one object, whatever it contains. Inside a slot it deletes normally; at the start of a slot it steps out — into the previous slot, or to just before the formula — leaving the content alone. Only when every slot of a formula is empty does the next `Backspace` remove that formula. `Delete` mirrors all of this forwards. Never more than one thing goes per keypress.
 - A sign typed after a sign replaces it, rather than being written beside it: `1+` then `−` is `1−`. Nobody means `1+−`, and the second press is the correction, so it is treated as one — which is the difference between a student fixing a slip with one key and fixing it with a backspace they have to think about. It applies to `+`, `−`, `:` and `⋅`, whether they come from keys or from the toolbar, and to nothing else: a sign following a digit, a bracket or a whole formula is written as written.
 - A selection spanning two slots deletes the covered part of each and keeps the formula: half a fraction is not a thing.
