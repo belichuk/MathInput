@@ -59,65 +59,60 @@ type DividerOrnament = { divider: HTMLElement; together: boolean };
 type ToolKind = Exclude<CompoundKind, "subscript">;
 type EditorIconName = ToolKind | "newLine" | "remove" | "plus" | "minus" | "divide" | "times" | "back" | "forward";
 
-const NUMERAL = "M528 432C528 437 526 442 521 445C517 448 512 449 507 447L459 431C451 428 446 419 449 411C452 403 461 398 469 401L496 410V288H464C455 288 448 281 448 272C448 263 455 256 464 256H560C569 256 576 263 576 272C576 281 569 288 560 288H528V432Z";
-const LETTER_X = "M80 384C71 384 64 377 64 368C64 359 71 352 80 352H119L221 192L119 32H80C71 32 64 25 64 16C64 7 71 0 80 0H128C134 0 139 3 142 7L240 162L339 7C341 3 347 0 352 0H400C409 0 416 7 416 16C416 25 409 32 400 32H361L259 192L361 352H400C409 352 416 359 416 368C416 377 409 384 400 384H352C347 384 341 381 339 377L240 222L142 377C139 381 134 384 128 384H80Z";
-const RADICAL = "M352 384C345 384 339 379 337 372L223 -20C222 -27 216 -31 210 -32C203 -33 197 -29 194 -24L83 184C80 189 75 192 69 192H16C7 192 0 199 0 208C0 217 7 224 16 224H69C87 224 103 214 111 199L204 26L306 381C312 402 331 416 352 416H560C569 416 576 409 576 400C576 391 569 384 560 384H352Z";
+/** The two boxes a fraction's icon holds, and the fine stroke they're drawn in. */
+const FRAC_BOXES: [number, number][] = [[6.4, 1.9], [6.4, 12.1]];
+/** The two dots an obelus holds, on the same axis as its bar. */
+const DIVIDE_DOTS: [number, number][] = [[10, 5.5], [10, 14.5]];
+const FINE_WEIGHT = 1.18;
 
 /**
- * `paths` are filled outlines lifted from a font, so they are drawn y-up and flipped into
- * place; `strokes`, `rings`, `dots` and `index` are drawn in the box's own coordinates,
- * which is what the symbols written here rather than taken from a typeface use.
+ * Every glyph, once, at module scope, all drawn as strokes on one 20-unit grid rather than
+ * as filled outlines from three unreconciled sources — a typeface, hand-drawn centrelines,
+ * bare circles. `weight` is the glyph's own stroke; a root's index and a power's exponent
+ * carry `fine` instead, since a full-weight stroke would out-mass the mark they sit beside.
  */
-type Point = [number, number, number];
-type Glyph = { width: number; paths?: string[]; strokes?: string[]; rings?: Point[]; dots?: Point[]; index?: string };
+type Glyph = { viewBox: string; weight: number; round?: boolean; paths: string[]; fine?: string; boxes?: boolean; dots?: boolean; shift?: string };
 
-/**
- * Every glyph, once, at module scope.
- *
- * This was a literal inside the component, so each of the eleven tools and the two row
- * buttons rebuilt the whole table — thirteen entries and their arrays — to read one field
- * out of it, on every render of every toolbar. The strings themselves were never the cost;
- * the objects around them were.
- *
- * `frac` is drawn from the primitives the others already use rather than from an outline of
- * its own: it is a bar between two hollow rings, which is exactly what a ring and a stroke
- * describe, and the 494-byte path it replaces was that same drawing written out as a filled
- * region. `remove` and the `x` in `power` keep their outlines — they cost 340 and 181 bytes
- * gzipped between them, and both are letter-like shapes whose weight a 34-unit stroke would
- * visibly coarsen, `power` beside a numeral taken from the same typeface.
- */
 const GLYPHS: Record<EditorIconName, Glyph> = {
-  sqrt: { width: 576, paths: [RADICAL] },
+  sqrt: { viewBox: "0.57 0.57 18.87 18.87", weight: 1.51, round: true, paths: ["M2.2 10.6 H4.3 L7.3 16.2 L10.5 4.2 H17.8"] },
   // The same radical, with the index drawn where a root's index sits.
-  cubeRoot: { width: 576, paths: [RADICAL], index: "3" },
-  frac: { width: 448, strokes: ["M16 192H432"], rings: [[224, 40, 40], [224, 344, 40]] },
-  power: { width: 576, paths: [LETTER_X, NUMERAL] },
-  group: { width: 448, strokes: ["M170 0C60 100 60 288 170 384", "M278 0C388 100 388 288 278 384"] },
-  plus: { width: 448, strokes: ["M64 192H384", "M224 32V352"] },
-  minus: { width: 448, strokes: ["M64 192H384"] },
-  // The two signs the editor writes as characters: a raised dot for multiplication —
-  // never a cross — and the colon for division, which is the fraction's inline form.
-  times: { width: 448, dots: [[224, 192, 72]] },
-  divide: { width: 448, dots: [[224, 102, 52], [224, 282, 52]] },
-  back: { width: 448, strokes: ["M384 192H64", "M176 80 64 192 176 304"] },
-  forward: { width: 448, strokes: ["M64 192H384", "M272 80 384 192 272 304"] },
-  newLine: { width: 512, paths: ["M480 368C480 377 487 384 496 384C505 384 512 377 512 368V272C512 219 469 176 416 176H55L171 59C178 53 178 43 171 37C165 30 155 30 149 37L5 181C2 184 0 188 0 192C0 196 2 200 5 203L149 347C155 353 165 353 171 347C178 341 178 331 171 325L55 208H416C451 208 480 237 480 272V368Z"] },
-  remove: { width: 448, paths: ["M176 432C169 432 163 427 161 421L150 384H299L288 421C286 427 279 432 272 432H176ZM130 430C136 450 155 464 176 464H272C293 464 312 450 318 430L332 384H432C441 384 448 377 448 368C448 359 441 352 432 352H16C7 352 0 359 0 368C0 377 7 384 16 384H116L130 430ZM52 -5 29 304H61L84 -2C85 -19 99 -32 115 -32H333C349 -32 363 -19 364 -2L387 304H419L396 -5C394 -38 366 -64 333 -64H115C82 -64 54 -38 52 -5ZM157 227C163 233 173 233 179 227L224 183L269 227C275 233 285 233 291 227C298 221 298 211 291 205L247 160L291 115C298 109 298 99 291 93C285 86 275 86 269 93L224 137L179 93C173 86 163 86 157 93C151 99 151 109 157 115L201 160L157 205C151 211 151 221 157 227Z"] },
+  cubeRoot: {
+    viewBox: "0.57 0.57 18.87 18.87", weight: 1.51, round: true,
+    paths: ["M5.2 11.4 H6.9 L9.2 16.3 L11.7 5.6 H17.8"],
+    fine: "M2.0 4.3 C2.9 3.2 5.2 3.6 4.9 5.0 C4.7 5.8 4.0 6.0 3.4 6.0 C4.3 6.0 5.3 6.4 5.2 7.5 C5.1 8.7 3.3 9.1 2.2 8.2",
+  },
+  // Two empty input boxes above and below a full-width rule, so the silhouette reads as a
+  // template — box, rule, box — rather than as the obelus's short rule and round dots.
+  frac: { viewBox: "0.57 0.57 18.87 18.87", weight: 1.51, paths: ["M2.2 10 H17.8"], boxes: true },
+  power: {
+    viewBox: "0.57 0.57 18.87 18.87", weight: 1.51, shift: "translate(0.13 -0.16)",
+    paths: ["M3.7 7.4 L10.3 15.8 M10.3 7.4 L3.7 15.8"],
+    fine: "M13.6 7.7 V4.7 M13.6 5.7 C13.95 4.4 15.85 4.3 16.2 5.7 V7.7",
+  },
+  group: { viewBox: "0.57 0.57 18.87 18.87", weight: 1.51, paths: ["M8.4 4.2 C6.1 6.6 6.1 13.4 8.4 15.8", "M13.4 4.2 C15.7 6.6 15.7 13.4 13.4 15.8"] },
+  plus: { viewBox: "0 0 20 20", weight: 1.6, paths: ["M10 4.4 V15.6 M4.4 10 H15.6"] },
+  minus: { viewBox: "0 0 20 20", weight: 1.6, paths: ["M4.4 10 H15.6"] },
+  // The obelus's short rule and round dots, kept apart from the fraction's boxes and full-width bar.
+  divide: { viewBox: "0 0 20 20", weight: 1.6, paths: ["M4.4 10 H15.6"], dots: true },
+  // The calculator cross, unambiguous and matched to the plus in stroke and optical mass.
+  times: { viewBox: "0 0 20 20", weight: 1.6, paths: ["M6.1 6.1 L13.9 13.9 M13.9 6.1 L6.1 13.9"] },
+  back: { viewBox: "0 0 20 20", weight: 1.6, round: true, paths: ["M16 10 H4.6 M9 5.4 L4.4 10 L9 14.6"] },
+  forward: { viewBox: "0 0 20 20", weight: 1.6, round: true, paths: ["M4 10 H15.4 M11 5.4 L15.6 10 L11 14.6"] },
+  newLine: { viewBox: "0 0 20 20", weight: 1.6, round: true, paths: ["M16.4 4.6 V9.4 C16.4 11 15.4 11.9 13.8 11.9 H4.6 M8.4 8.3 L4.4 11.9 L8.4 15.5"] },
+  remove: { viewBox: "0 0 20 20", weight: 1.6, round: true, paths: ["M3.4 5.9 H16.6", "M7.6 5.9 V3.8 H12.4 V5.9", "M5.5 5.9 L6.4 16.3 H13.6 L14.5 5.9"] },
 };
 
 function EditorIcon({ name }: { name: EditorIconName }) {
   const glyph = GLYPHS[name];
+  const marks = <>
+    {glyph.paths.map((path) => <path key={path} d={path} />)}
+    {glyph.fine ? <path d={glyph.fine} strokeWidth={FINE_WEIGHT} /> : null}
+    {glyph.boxes ? FRAC_BOXES.map(([x, y]) => <rect key={y} x={x} y={y} width={7.2} height={6} rx={1.3} strokeWidth={1.32} />) : null}
+    {glyph.dots ? DIVIDE_DOTS.map(([x, y]) => <circle key={y} cx={x} cy={y} r={1.5} fill="currentColor" stroke="none" />) : null}
+  </>;
 
-  return <svg className="math-input__icon" viewBox={`0 -64 ${glyph.width} 512`} fill="currentColor" aria-hidden="true">
-    {glyph.paths ? <g transform="translate(0 384) scale(1 -1)">
-      {glyph.paths.map((path) => <path key={path} d={path} />)}
-    </g> : null}
-    {glyph.strokes || glyph.rings ? <g stroke="currentColor" strokeWidth="34" strokeLinecap="round" strokeLinejoin="round" fill="none">
-      {glyph.strokes?.map((path) => <path key={path} d={path} />)}
-      {glyph.rings?.map(([x, y, radius]) => <circle key={`${x} ${y}`} cx={x} cy={y} r={radius} />)}
-    </g> : null}
-    {glyph.dots?.map(([x, y, radius]) => <circle key={`${x} ${y}`} cx={x} cy={y} r={radius} />)}
-    {glyph.index ? <text x="24" y="112" fontSize="230" fontWeight="700" fill="currentColor">{glyph.index}</text> : null}
+  return <svg className="math-input__icon" viewBox={glyph.viewBox} fill="none" stroke="currentColor" strokeWidth={glyph.weight} strokeLinecap="round" strokeLinejoin={glyph.round ? "round" : undefined} aria-hidden="true">
+    {glyph.shift ? <g transform={glyph.shift}>{marks}</g> : marks}
   </svg>;
 }
 
