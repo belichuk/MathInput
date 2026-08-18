@@ -672,8 +672,8 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
      * alone: it stops here, so the page around it never fires a shortcut on a keystroke
      * the user aimed at a formula. `preventDefault` is separate, and only for keys the
      * editor acts on itself — typing and deletion are still performed by `beforeinput`.
-     * Everything the editor has no use for is left untouched: Tab still moves focus, and
-     * application shortcuts such as Cmd/Ctrl+S still reach the application.
+     * Everything the editor has no use for is left untouched: application shortcuts such as
+     * Cmd/Ctrl+S still reach the application.
      */
     const onKeyDown = (event: Event) => {
       const key = event as KeyboardEvent;
