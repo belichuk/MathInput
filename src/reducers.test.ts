@@ -34,6 +34,59 @@ describe("insertText", () => {
     expect(sketch(apply(rowOf("\\sqrt{}", inside(1, "content", 0)), type("9")))).toBe("\\sqrt{9|}");
   });
 
+  /**
+   * A term written straight against a formula is multiplying it, and the value now says so.
+   *
+   * `\\frac{1}{3}x` is a fraction times x to anybody reading it, and juxtaposition is how that
+   * is written on paper — but the value leaves this field for something that is not a person,
+   * and a marking script comparing two answers should not have to work out where one term
+   * ended and the next began.
+   */
+  describe("a term written against a formula", () => {
+    it("writes the multiplication sign nobody typed", () => {
+      expect(sketch(apply(rowOf("\\frac{1}{3}", top(2)), type("x")))).toBe("\\frac{1}{3}\\cdot x|");
+      expect(sketch(apply(rowOf("\\sqrt{2}", top(2)), type("1"), type("0")))).toBe("\\sqrt{2}\\cdot 10|");
+      expect(sketch(apply(rowOf("x^{2}", top(2)), type("1"), type("0")))).toBe("x^{2}\\cdot 10|");
+    });
+
+    it("does it at any depth, because the junction is what it looks at", () => {
+      expect(sketch(apply(rowOf("\\frac{\\sqrt{2}}{3}", inside(1, "numerator", 2)), type("x"))))
+        .toBe("\\frac{\\sqrt{2}\\cdot x|}{3}");
+    });
+
+    it("leaves a sign, a relation and a bracket alone — they are already the operator", () => {
+      expect(sketch(apply(rowOf("\\frac{1}{3}", top(2)), type("+"), type("x")))).toBe("\\frac{1}{3}+x|");
+      expect(sketch(apply(rowOf("\\frac{1}{3}", top(2)), type("=")))).toBe("\\frac{1}{3}=|");
+    });
+
+    it("leaves punctuation alone, which is the reason it is not simply `a term`", () => {
+      // `\\frac{1}{2}, \\frac{1}{3}` is a list of two fractions and `\\frac{1}{2}\\cdot ,` is nothing
+      // at all. A full stop reads the same way — very often it is the end of a sentence.
+      expect(sketch(apply(rowOf("\\frac{1}{2}", top(2)), type(","), type(" "))))
+        .toBe("\\frac{1}{2},|");
+      expect(sketch(apply(rowOf("\\frac{1}{2}", top(2)), type(".")))).toBe("\\frac{1}{2}.|");
+    });
+
+    it("only where the two actually touch", () => {
+      // A space away from the formula is a term of its own, and the caret has to be at the very
+      // start of the run for the formula to be its left-hand neighbour.
+      expect(sketch(apply(rowOf("\\frac{1}{3}+2", top(2, 2)), type("x")))).toBe("\\frac{1}{3}+2x|");
+    });
+
+    it("writes nothing in front of a formula, where the reading is not settled", () => {
+      // Two and a half is written `2\\frac{1}{2}`, and `2\\cdot\\frac{1}{2}` is not what that means.
+      expect(sketch(apply(rowOf("2", top(0, 1)), { type: "insertCompound", kind: "frac" })))
+        .toBe("2\\frac{|}{}");
+    });
+
+    it("is a rule about typing, so a stored value is read back exactly as it was written", () => {
+      // Nothing is rewritten on the way in: an answer saved before this release loads as itself,
+      // and `parse` stays the inverse of `serialize`.
+      expect(latexOf(rowOf("\\frac{1}{3}x"))).toBe("\\frac{1}{3}x");
+      expect(sketch(apply(rowOf(""), { type: "paste", text: "\\frac{1}{3}x" }))).toBe("\\frac{1}{3}x|");
+    });
+  });
+
   it("shows multiplication as a dot and ignores spaces", () => {
     expect(sketch(apply(rowOf(""), type("2"), type("*"), type(" "), type("3")))).toBe("2\\cdot 3|");
   });

@@ -85,7 +85,9 @@ it("writes what the README says it writes", () => {
   // space bar and a desktop's the same key, and why it is typed here rather than pressed.
   type("1/2 x^2 +\u221a16 =12");
 
-  expect(latex()).toBe("\\frac{1}{2}x^{2}+\\sqrt{16}=12");
+  // The `\cdot` is the one nobody typed: `x` written straight against the fraction is
+  // multiplying it, and the value says so rather than leaving it to be inferred.
+  expect(latex()).toBe("\\frac{1}{2}\\cdot x^{2}+\\sqrt{16}=12");
 });
 
 /**

@@ -40,8 +40,10 @@ const SCENES: Record<string, () => JSX.Element> = {
   // caret can be moved into. No `\pm`: the reader knows the subset the writer emits and nothing
   // else, so a command it has never heard of would be photographed as its own source.
   nested: () => <MathInput defaultValue="x=\frac{-b+\sqrt{b^{2}-4\cdot a\cdot c}}{2\cdot a}" toolbar={{ autoHide: false }} />,
-  // Empty, for the recording: the GIF is typed into this one.
-  empty: () => <MathInput placeholder="Show your working…" toolbar={{ autoHide: false }} />,
+  // Empty, for the recording: the GIF is typed into this one. No toolbar, because the recording
+  // is about what the keyboard does — the tools are photographed in `field` instead, and a
+  // narrow window wraps them onto two lines, which is honest but is not how the strip looks.
+  empty: () => <MathInput placeholder="Show your working…" toolbar={false} />,
 };
 
 const scene = new URLSearchParams(window.location.search).get("scene") ?? "field";

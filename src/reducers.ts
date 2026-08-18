@@ -162,6 +162,43 @@ function replacesSign(content: FormulaNode[], caret: CaretPosition, value: strin
   return node !== null && caret.offset > 0 && isSign(node.value[caret.offset - 1]);
 }
 
+/**
+ * What may be written against a formula with nothing between it and the formula.
+ *
+ * `LEADING_TERM` — which is what the rest of this file means by a term — includes `.` and `,`,
+ * and neither belongs here. A comma after a fraction is a list (`\frac{1}{2}, \frac{1}{3}`) and
+ * a full stop is very often the end of a sentence; writing `\frac{1}{2}\cdot ,` for either would
+ * turn punctuation into arithmetic. A letter or a digit has no such second reading.
+ */
+const OPENS_A_TERM = /^[A-Za-z0-9]/;
+
+/**
+ * Whether what is being typed needs the multiplication sign nobody typed.
+ *
+ * `\frac{1}{3}x` is a fraction times x, and so are `\sqrt{2}10` and `x^{2}10` — juxtaposition
+ * is multiplication, and it is written that way on paper. But a value read by something other
+ * than a person has to be *told*: a marking script comparing answers, or anything evaluating
+ * one, would otherwise have to guess where a term ended and the next began, and guessing is
+ * exactly what an editor exists to make unnecessary. So the sign is written, and what leaves the
+ * field says what it means.
+ *
+ * The condition is entirely local, and it is the junction rather than the keystroke: a letter or
+ * a digit written at the very start of a run whose left-hand neighbour is a construct. Depth
+ * makes no difference — the numerator of a fraction is an array like any other — and neither
+ * does how the character arrived, so pasting `10` after a root reads the same as typing it.
+ *
+ * **Only this direction.** Text written *before* a construct is left alone, and not for want of
+ * symmetry: `2` then a fraction is how somebody writes two and a half, and `2\cdot\frac{1}{2}`
+ * is not what they meant. Which of the two readings a host wants is a real question — mixed
+ * numbers are a serialisation decision this release does not take — and the answer to it should
+ * not be pre-empted by a rule about spacing.
+ */
+function juxtaposesConstruct(content: FormulaNode[], caret: CaretPosition, value: string): boolean {
+  if (caret.offset !== 0 || !OPENS_A_TERM.test(value)) return false;
+  const target = resolve(content, caret.path);
+  return target !== null && isText(target.array[target.index]) && isCompound(target.array[target.index - 1]);
+}
+
 type Capture = { array: FormulaNode[]; index: number; offset: number; term: FormulaNode[] };
 
 function takePrecedingTerm(array: FormulaNode[], index: number, offset: number): Capture {
@@ -390,7 +427,8 @@ export function reduce(state: RowState, action: Action): RowState {
       const value = cleanFormulaText(action.text);
       if (!value) return state;
       const { content, caret } = takeSelection(state);
-      return insertTextAt(content, caret, value, replacesSign(content, caret, value) ? 1 : 0);
+      const written = juxtaposesConstruct(content, caret, value) ? TIMES + value : value;
+      return insertTextAt(content, caret, written, replacesSign(content, caret, value) ? 1 : 0);
     }
     // Which slot each of these opens at, and whether it adopts the term in front of it, is
     // the registry's business rather than this file's.

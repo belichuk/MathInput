@@ -51,6 +51,10 @@ listening to one should be possible at all.
 - **The caret's zero-width placeholder is out of the accessibility tree.** A blank slot draws one so the caret has somewhere with geometry to stand; it is no part of what the field says, and a screen reader reading an empty row should find it empty.
 - Every control has 44 pixels of touch target, without any of them being drawn 44 pixels across.
 
+### Added
+
+- **A term written straight against a formula gets the multiplication sign nobody typed.** `\frac{1}{3}` then `x` is now `\frac{1}{3}\cdot x`, and so are `\sqrt{2}10` and `x^{2}10`. Juxtaposition *is* multiplication and it is written that way on paper — but the value leaves this field for something that is not a person, and a marking script comparing two answers, or anything evaluating one, would otherwise have to work out for itself where one term ended and the next began. Three limits, each deliberate: it is only that direction, because `2` then a fraction is how two and a half is written and `2\cdot\frac{1}{2}` is not what that means; it is only letters and digits, because `\frac{1}{2}, \frac{1}{3}` is a list and a comma is not arithmetic; and it happens only while typing, so **a stored value is read back exactly as it was saved** and an answer written before this release is not rewritten underneath whoever wrote it. The sign is an ordinary character once written — `Backspace` takes the letter, and a second `Backspace` takes the dot.
+
 ### Deprecated
 
 - **`autoHideToolbar`, `showOperators` and `showNavigation` are one `toolbar` prop.** They were a prop each for the first three answers to one question, with no room in that shape for a fourth — so `toolbar={{ autoHide, constructs, operators, navigation }}` now also turns the formula group off, and `toolbar={false}` removes the strip entirely. **The old three still work**, mapped onto the new one and warning once in a development build; they go in 0.7.0. Where both speak about the same group the new one answers, and where the new one is silent the old one is still heard, so a half-migrated host is coherent. [MIGRATING-0.5.0.md](MIGRATING-0.5.0.md) has a codemod.
