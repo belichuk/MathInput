@@ -326,16 +326,16 @@ What a browser downloads, for the component as it stands:
 
 | | Raw | Gzipped |
 | --- | --- | --- |
-| `math-input.js` (ESM) | 43.8 kB | **15.4 kB** |
+| `math-input.js` (ESM) | 42.9 kB | **14.5 kB** |
 | `math-input.css` | 8.8 kB | **2.3 kB** |
 
-About 17.7 kB gzipped in total, with React the only thing it expects to already be there. It grew by 2 kB in 0.5.0, and where it went is worth knowing: rendering a row only when that row changed, and setting mathematics properly — spacing operations, italicising letters, sizing radicals to what they cover. For comparison, KaTeX alone is an order of magnitude larger, and this is a whole editor.
+About 16.8 kB gzipped in total, with React the only thing it expects to already be there. It grew by 1.6 kB in 0.5.0, and where it went is worth knowing: rendering a row only when that row changed, and setting mathematics properly — spacing operations, italicising letters, sizing radicals to what they cover. For comparison, KaTeX alone is an order of magnitude larger, and this is a whole editor.
 
 There is nothing to tree-shake off: one entry, one component, and every module behind it is on the path from typing a key to seeing a formula. `sideEffects` is declared, so a bundler is free to drop the stylesheet if you never import it.
 
 One note for anyone measuring their own build of this: the published ES bundle was mangled but pretty-printed until 0.5.0, which cost 1.2 kB gzipped in whitespace. Forcing `minify: "esbuild"` really does make it 3% *bigger*, as earlier notes here said — the setting that mattered was the bundle's own output minification, which is separate from the build's.
 
-The npm tarball is larger than the numbers above (~204 kB) because it also carries the CommonJS build, source maps and type declarations. None of that reaches your users; bundlers take the ESM build and leave the rest.
+The npm tarball is larger than the numbers above (~200 kB) because it also carries the CommonJS build, source maps and type declarations. None of that reaches your users; bundlers take the ESM build and leave the rest.
 
 ## Frameworks
 
