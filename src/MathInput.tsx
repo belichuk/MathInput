@@ -186,7 +186,7 @@ function warnOfRenamedProps(props: LegacyToolbarProps) {
   for (const [was, now] of RENAMED) {
     if (props[was] === undefined || warnedOf.has(was)) continue;
     warnedOf.add(was);
-    console.warn(`MathInput: \`${was}\` is deprecated and goes in 0.7.0 — write \`toolbar={{ ${now}: ${props[was]} }}\`. See MIGRATING-0.5.0.md.`);
+    console.warn(`MathInput: \`${was}\` is deprecated and goes in 0.7.0 — write \`toolbar={{ ${now}: ${props[was]} }}\`. See CHANGELOG.md.`);
   }
 }
 

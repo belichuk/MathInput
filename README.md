@@ -10,7 +10,7 @@ A React field for writing mathematics the way it is written on paper — one for
 
 Every key in that recording is an ordinary one: `/` opened the fraction, `^` the power, `√` the root, and arrow keys leave their slots. What `onChange` handed back is `\frac{1}{2}x^{2}+\sqrt{16}=12` — ready to store, mark, or render with KaTeX.
 
-**Contents** · [Install](#install) · [Quick start](#quick-start) · [Props](#props) · [What can be typed](#what-can-be-typed) · [Styling](#styling) · [The value](#the-value) · [Recipes](#recipes) · [Accessibility](#accessibility) · [Migrating to 0.5.0](MIGRATING-0.5.0.md)
+**Contents** · [Install](#install) · [Quick start](#quick-start) · [Props](#props) · [What can be typed](#what-can-be-typed) · [Styling](#styling) · [The value](#the-value) · [Recipes](#recipes) · [Accessibility](#accessibility)
 
 ## Install
 
@@ -82,7 +82,7 @@ One prop describes the whole strip. Every key is optional and every default is o
 
 `toolbar={false}` removes the strip and its tab stop. Rows can still be split with `Enter` and merged with `Backspace` or `Delete`, so the field remains fully editable without the row controls.
 
-> **Renamed in 0.5.0.** `autoHideToolbar`, `showOperators` and `showNavigation` still work and still do exactly what they did; each warns once, in development, naming what to write instead. They go in 0.7.0. [MIGRATING-0.5.0.md](MIGRATING-0.5.0.md) has the codemod.
+> **Renamed in 0.5.0.** `autoHideToolbar`, `showOperators` and `showNavigation` still work and still do exactly what they did; each warns once, in development, naming what to write instead. They go in 0.7.0.
 
 ### Controlled or uncontrolled
 

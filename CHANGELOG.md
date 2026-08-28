@@ -4,12 +4,18 @@ What changed in each version of the component. Versions follow [semantic version
 
 ## 0.6.0 — 2026-08-28
 
-- Text typed beside a formula is kept exactly as written; the editor no longer inserts an implicit `\cdot`.
-- Named functions (`sin`, `cos`, `tan`, `log`, `ln`, `lim`) are atoms: they render upright, are read aloud by name, and round-trip as KaTeX commands.
-- Type `sqrt`, function names, or Greek names such as `pi` to recognise them. Recognition is one undoable edit; Backspace immediately restores the literal text.
-- Absolute-value fences, Greek letters, and `≤`, `≥`, `≠` are supported. Type `<=`, `>=`, or `!=` for the relations.
-- Enter splits a row at a row-level caret; Backspace at the start of a row and Delete at its end merge neighbouring rows. Space remains ordinary text.
-- No public API was removed. The 0.5.0 deprecated toolbar prop names remain supported through 0.6.x.
+### Added
+
+- Named operator atoms: `sin`, `cos`, `tan`, `log`, `ln`, and `lim`; they render upright, are read aloud by name, and round-trip as KaTeX commands.
+- Typed-token recognition for `sqrt`, operator names, and Greek names such as `pi`. Recognition is independently undoable; immediate Backspace restores the typed text.
+- Absolute-value fences, Greek characters, and the `≤`, `≥`, and `≠` relations. Type `<=`, `>=`, or `!=` for those relations.
+- Row-level editing: Enter splits a row; Backspace at a row start and Delete at a row end merge adjacent rows.
+
+### Changed
+
+- Space is regular visible text, including inside formula slots.
+- Text beside a formula is kept exactly as written; the editor no longer adds an implicit `\cdot`. Use `*`, `×`, or `·` for multiplication.
+- No public API was removed. The 0.5.0 deprecated toolbar names remain available through 0.6.x.
 
 ## 0.5.0 — 2026-08-17
 
@@ -66,7 +72,7 @@ listening to one should be possible at all.
 
 ### Deprecated
 
-- **`autoHideToolbar`, `showOperators` and `showNavigation` are one `toolbar` prop.** They were a prop each for the first three answers to one question, with no room in that shape for a fourth — so `toolbar={{ autoHide, constructs, operators, navigation }}` now also turns the formula group off, and `toolbar={false}` removes the strip entirely. **The old three still work**, mapped onto the new one and warning once in a development build; they go in 0.7.0. Where both speak about the same group the new one answers, and where the new one is silent the old one is still heard, so a half-migrated host is coherent. [MIGRATING-0.5.0.md](MIGRATING-0.5.0.md) has a codemod.
+- **`autoHideToolbar`, `showOperators` and `showNavigation` are one `toolbar` prop.** They were a prop each for the first three answers to one question, with no room in that shape for a fourth — so `toolbar={{ autoHide, constructs, operators, navigation }}` now also turns the formula group off, and `toolbar={false}` removes the strip entirely. **The old three still work**, mapped onto the new one and warning once in a development build; they go in 0.7.0. Where both speak about the same group the new one answers, and where the new one is silent the old one is still heard, so a half-migrated host is coherent.
 - **`--math-input-control-hover-border` is `--math-input-control-hover-border-color`**, which says what it sets the way every other colour here does. Both names are read — the new one first — until 0.7.0. The README now also states the naming rule the rest of the properties follow: `--math-input-` and then what it applies to, nothing for the component as a whole, `field-` for the writing surface, `control-` for the buttons, `root-` for the radical.
 
 ### Removed
