@@ -5,7 +5,7 @@ import {
 } from "./model";
 import { type AnyInsertion, type InsertKind, KEY_INSERTIONS, TOOL_INSERTIONS, specFor, specOf } from "./registry";
 import { cleanFormulaText, parseLatex } from "./parse";
-import { endOfArray, exitBackward, exitForward, nextPosition, positionAfterNode, previousPosition, rowEnd, rowStart, skipForward, startOfArray } from "./caret";
+import { endOfArray, exitBackward, exitForward, nextPosition, positionAfterNode, previousPosition, rowEnd, rowStart, startOfArray } from "./caret";
 
 /**
  * Every editing operation, as a pure function of (row, caret) → (row, caret).
@@ -33,8 +33,6 @@ export type Action =
   | { type: "closeGroup" }
   | { type: "delete"; direction: "backward" | "forward" }
   | { type: "move"; direction: "backward" | "forward" }
-  /** The space bar: forward past what is in front of the caret rather than into it. */
-  | { type: "skip" }
   | { type: "moveToEdge"; edge: "start" | "end" }
   | { type: "select"; selection: SelectionRange };
 
@@ -471,11 +469,6 @@ export function reduce(state: RowState, action: Action): RowState {
       }
       return moveTo(state, action.direction === "backward" ? previousPosition(state.content, state.selection.focus) : nextPosition(state.content, state.selection.focus));
     }
-    // A selection is stepped out of rather than over: the space bar puts the caret at its
-    // far end, the same as `→`, leaving what was selected written and behind the caret.
-    case "skip": return isCollapsed(state.selection)
-      ? moveTo(state, skipForward(state.content, state.selection.focus))
-      : moveTo(state, orderedRange(state.content, state.selection).end);
     case "moveToEdge": return { content: state.content, selection: collapsedAt(action.edge === "start" ? rowStart() : rowEnd(state.content)) };
     case "select": return { content: state.content, selection: action.selection };
   }

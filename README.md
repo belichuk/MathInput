@@ -8,7 +8,7 @@ A React field for writing mathematics the way it is written on paper — one for
 
 ![Typing ½ · x² + √16 = 12: the fraction stacks as it is typed, a multiplication sign appears where one was needed, the power raises, and the root draws itself over what it covers](https://raw.githubusercontent.com/belichuk/MathInput/main/docs/images/typing.gif)
 
-Every key in that recording is an ordinary one: `/` opened the fraction, `^` the power, `√` the root, and `Space` stepped out of each. What `onChange` handed back is `\frac{1}{2}\cdot x^{2}+\sqrt{16}=12` — ready to store, mark, or render with KaTeX. The `\cdot` is the only thing nobody typed: `x` written straight against a fraction is multiplying it, and the value says so rather than leaving it to be worked out.
+Every key in that recording is an ordinary one: `/` opened the fraction, `^` the power, `√` the root, and arrow keys leave their slots. What `onChange` handed back is `\frac{1}{2}\cdot x^{2}+\sqrt{16}=12` — ready to store, mark, or render with KaTeX. The `\cdot` is the only thing nobody typed: `x` written straight against a fraction is multiplying it, and the value says so rather than leaving it to be worked out.
 
 **Contents** · [Install](#install) · [Quick start](#quick-start) · [Props](#props) · [What can be typed](#what-can-be-typed) · [Styling](#styling) · [The value](#the-value) · [Recipes](#recipes) · [Accessibility](#accessibility) · [Migrating to 0.5.0](MIGRATING-0.5.0.md)
 
@@ -128,10 +128,10 @@ The formula still renders and can be selected and copied; only editing stops.
 **A worked example**, and it is the one in the recording at the top. Type
 
 ```
-1/2  ␣  x^2  ␣  +√16  ␣  =12
+1/2, `→`, x^2, `→`, +√16, `→`, =12
 ```
 
-and the field holds `\frac{1}{2}\cdot x^{2}+\sqrt{16}=12`. Each `Space` steps out of the slot the key before it opened — out of a denominator, out of an exponent, out from under a radical — so a whole expression is written without once reaching for the mouse or an arrow key.
+and the field holds `\frac{1}{2}\cdot x^{2}+\sqrt{16}=12`. `Space` writes a normal space, so use the arrow keys, `Tab`, or `)` to leave a formula slot.
 
 The toolbar comes in three groups, divided: the formulas that have to be built — a square root, a cube root, a fraction, a power, brackets — then the four operators `+` `−` `:` `⋅`, then the two arrows that move the caret. Every button does what the matching key does, so a field can be filled in on a tablet with no keyboard at all. Each group is on by default and switched off on its own through `toolbar`. Subscripts have no button — `_` writes them. The rest is the keyboard:
 
@@ -146,7 +146,7 @@ The toolbar comes in three groups, divided: the formulas that have to be built �
 | a letter or digit typed against a formula | Gets a `⋅` in front of it: `\frac{1}{3}` then `x` is `\frac{1}{3}\cdot x`, and `\sqrt{2}` then `10` is `\sqrt{2}\cdot 10` |
 | `√` `∛` | Open a square root and a cube root around what follows, the way `(` opens brackets. Not on most physical keyboards, but on every soft one's symbol page — and they survive dictation, autocorrect and paste |
 | `=` | Comes out of anything that cannot hold a relation — a numerator, a radicand, an exponent — and stops at the first thing that can, so `(x=1)` stays inside its brackets |
-| `Space` | Steps past what is in front of the caret: the rest of the run, a whole formula, or the slot itself — `\sqrt{9\|}` becomes `\sqrt{9}\|` |
+| `Space` | Writes a space |
 | `←` `→` | Step through every slot in reading order, then out of the formula |
 | `↑` `↓` | Move between the slots a formula stacks — numerator and denominator, exponent and base — and between rows when nothing around the caret stacks anything |
 | `Home` `End` | Start and end of the row |
@@ -160,7 +160,7 @@ Selecting something and then opening a formula writes the formula *around* it: s
 
 A sign written straight after another takes its place: `1+` then `−` is `1−`, and `1−` then `*` is `1⋅`, from the keyboard or the toolbar. Two signs in a row are a slip rather than a formula, and the second is the correction — so a mistyped operator is fixed by pressing the right one, with no backspace in between. Only a sign replaces a sign: after a digit, a bracket or a whole formula it is simply written, so a minus that opens a row, a bracket or a slot is a negative as it always was.
 
-Pasted LaTeX arrives as the formula it describes rather than as its own source: paste `\frac{1}{2}` and you get a fraction with slots to move around inside. Text with no structure in it is written literally, so pasting `1/2+3` gives those six characters — `/` is not LaTeX, whatever the `/` key does when pressed. No whitespace is ever written into a formula — pasted spaces are dropped, and the space bar moves the caret instead — and a formula opened in front of written work wraps it: with the caret at `1/2+|10`, typing `(` gives `\frac{1}{2}+\left(10\right)` with the caret inside the brackets, after the `10`.
+Pasted LaTeX arrives as the formula it describes rather than as its own source: paste `\frac{1}{2}` and you get a fraction with slots to move around inside. Text with no structure in it is written literally, so pasting `1/2+3` gives those six characters — `/` is not LaTeX, whatever the `/` key does when pressed. Whitespace is preserved, so prose and formulas can be mixed in the same field; a formula opened in front of written work wraps it: with the caret at `1/2+|10`, typing `(` gives `\frac{1}{2}+\left(10\right)` with the caret inside the brackets, after the `10`.
 
 ## Styling
 
@@ -391,7 +391,7 @@ A host that genuinely needs to watch every keystroke can listen in the capture p
 
 Typing `/` turns the term immediately before the caret into the numerator of a new fraction and moves the caret to its denominator, so `10 /` becomes `\frac{10}{}`. Typing `^` and `_` do the same for powers and subscripts: `10^2` produces `10^{2}` as a *single* object, base included, so the whole power can be selected, deleted or made into a numerator at once. Where a complete formula sits directly before the caret, that formula is what gets taken — `\frac{1}{2}` followed by `/` nests the fraction into a new numerator.
 
-The power tool does the same as `^` when there is a term behind the caret, and opens at the *base* when there is not: a power pressed on an empty row has no base yet, and nothing written from inside the exponent can give it one. Every tool works this way — it opens its formula at the first slot still to be written — so `Space` or `→` carries on into the next one.
+The power tool does the same as `^` when there is a term behind the caret, and opens at the *base* when there is not: a power pressed on an empty row has no base yet, and nothing written from inside the exponent can give it one. Every tool works this way — it opens its formula at the first slot still to be written — so `→` carries on into the next one.
 
 A formula opened in front of written work wraps that work instead of pushing it aside. Roots and fractions behave like the brackets above: the slot the caret was going to land in takes the term in front of it, a whole formula included, so `(` typed in front of `\frac{1}{2}` brackets the fraction rather than sitting beside it. Only that one term is taken, leaving the rest of the row alone: `|10+20` with the root button gives `\sqrt{10}+20`. `/` can take a term on each side, `10|5` becoming `\frac{10}{5}`. Where nothing is written in front of the caret the formula opens empty.
 
@@ -400,7 +400,7 @@ A formula opened in front of written work wraps that work instead of pushing it 
 Every box in that formula is a slot the caret can be put in — by clicking it, by `Tab`, or by the arrow keys. The editor treats a formula as a navigable object rather than plain text:
 
 - `→` and `←` step through every slot of a formula in reading order — a power's base before its exponent, a numerator before its denominator, a root's index before its radicand — and then out to the position after (or before) the whole formula.
-- `Space` steps *past* what is in front of the caret rather than into it: first the rest of what is being written, then over a whole formula standing next to it, then out of the slot itself — one thing per press, the way `Backspace` removes one thing per press. A slot left this way hands the caret to the *end* of the next one, since what is written there is written: `\frac{1|}{2}` becomes `\frac{1}{2|}`, and the next press leaves the fraction. So `1/2` typed straight through, then `Space`, carries on after the fraction rather than inside it, and a root or a power is left the same way. Nothing is written by the key, at the end of the row it does nothing, and a space in pasted text is still dropped.
+- `Space` writes a normal space, including inside formula slots. Use `→`, `Tab`, or `)` to leave a formula slot.
 - Clicking inside any slot places the caret in that part of the formula.
 - Clicking past a formula's edge, or pressing `End`, continues after it.
 - Typing `=` comes out of whatever cannot hold a relation and stops at the first thing that can. A numerator, a radicand and an exponent cannot, so `10^=2` cannot be typed at all and `=` pressed deep inside `\frac{1}{\frac{1}{2}}` lands after the outer fraction. Brackets *can*, because `\left(x=1\right)` is a sentence: `=` typed inside them stays where it was typed. Which constructs can hold one is declared per construct rather than decided key by key.

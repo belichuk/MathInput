@@ -210,10 +210,8 @@ render (§5.7). Nothing reads the caret back out of the page in order to decide 
 
 This layer answers movement questions over that representation: the next and previous position
 in reading order; into a construct's first or last slot; out of the current slot into the next
-one or past the whole construct; to the start or end of a sequence; and the distinct motion of
-*stepping past* whatever lies ahead rather than into it — which is what the space bar does,
-landing at the far end of the next slot rather than its start, because what is written there is
-written and the place to carry on is after it.
+one or past the whole construct; and to the start or end of a sequence. A space is ordinary text,
+not a navigation command.
 
 Two properties matter for cost. Because of the alternation invariant, "at the end of this run"
 is an integer comparison, so no movement measures anything. And because movement is expressed
@@ -428,7 +426,7 @@ most exposed to judgement: all of it is a choice, and several of the choices are
 | `=` | Promoted out to the row and written after the whole expression, wherever the caret sits. |
 | `*`, `×`, `·` | All normalised to a raised dot, emitted as the multiplication command. |
 | `:` | Division sign, written as a character — the inline form of a fraction. |
-| Space | Step *past* what is in front of the caret rather than into it: to the end of the current run, then over a whole construct, then out of the slot, landing at the end of the next slot. |
+| Space | Insert a normal space. |
 
 Everything else typed is inserted literally, with one correction rule: an operator typed
 directly after another replaces it, because two in a row are a slip rather than an expression.

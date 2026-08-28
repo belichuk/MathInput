@@ -59,7 +59,6 @@ const EDITS: Action[] = [
   { type: "insertCompound", kind: "group" },
   { type: "closeGroup" },
   { type: "equals" },
-  { type: "skip" },
 ];
 
 describe("every construct in the registry", () => {

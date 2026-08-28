@@ -1,7 +1,7 @@
 import { type FormulaNode, type TextNode, TIMES, TRAILING_TERM, frac, group, isText, normalize, power, sqrt, subscript, text } from "./model";
 
-/** Formulas never carry whitespace, and every way of writing multiplication becomes `⋅`. */
-export const cleanFormulaText = (value: string): string => value.replace(/\s+/g, "").replace(/[*×·]/g, TIMES).replace(/−/g, "-");
+/** Text is kept literally, apart from the equivalent multiplication and minus glyphs. */
+export const cleanFormulaText = (value: string): string => value.replace(/[*×·]/g, TIMES).replace(/−/g, "-");
 
 type Stop = "end" | "brace" | "bracket" | "paren";
 
@@ -101,6 +101,9 @@ export function parseLatex(line: string): FormulaNode[] {
       if (product) {
         builder.pushText(TIMES);
         position += product.length;
+        // The serializer uses one space to terminate a command before a following letter.
+        // It is syntax rather than authored content, so do not turn it into a second space.
+        if (line[position] === " ") position += 1;
         continue;
       }
       if (line[position] === "(" || line.startsWith("\\left(", position)) {

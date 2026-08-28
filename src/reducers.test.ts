@@ -63,7 +63,7 @@ describe("insertText", () => {
       // `\\frac{1}{2}, \\frac{1}{3}` is a list of two fractions and `\\frac{1}{2}\\cdot ,` is nothing
       // at all. A full stop reads the same way — very often it is the end of a sentence.
       expect(sketch(apply(rowOf("\\frac{1}{2}", top(2)), type(","), type(" "))))
-        .toBe("\\frac{1}{2},|");
+        .toBe("\\frac{1}{2}, |");
       expect(sketch(apply(rowOf("\\frac{1}{2}", top(2)), type(".")))).toBe("\\frac{1}{2}.|");
     });
 
@@ -87,8 +87,8 @@ describe("insertText", () => {
     });
   });
 
-  it("shows multiplication as a dot and ignores spaces", () => {
-    expect(sketch(apply(rowOf(""), type("2"), type("*"), type(" "), type("3")))).toBe("2\\cdot 3|");
+  it("shows multiplication as a dot and preserves spaces", () => {
+    expect(sketch(apply(rowOf(""), type("2"), type("*"), type(" "), type("3")))).toBe("2\\cdot  3|");
   });
 
   it("replaces the selection it is typed over", () => {
@@ -197,7 +197,7 @@ describe("toolbar insertion", () => {
   });
 
   it("writes a power opened with no base from the base onwards", () => {
-    expect(sketch(apply(rowOf(""), insert("power"), type("10"), { type: "skip" }, type("2")))).toBe("10^{2|}");
+    expect(sketch(apply(rowOf(""), insert("power"), type("10"), { type: "move", direction: "forward" }, type("2")))).toBe("10^{2|}");
   });
 
   it("takes the preceding term for a power, exactly as the ^ key does", () => {
@@ -399,40 +399,6 @@ describe("arrow keys", () => {
   it("moves to the row edges", () => {
     expect(sketch(apply(rowOf("1+\\sqrt{2}"), { type: "moveToEdge", edge: "end" }))).toBe("1+\\sqrt{2}|");
     expect(sketch(apply(rowOf("1+\\sqrt{2}", top(2, 0)), { type: "moveToEdge", edge: "start" }))).toBe("|1+\\sqrt{2}");
-  });
-});
-
-describe("the space bar", () => {
-  const skip: Action = { type: "skip" };
-
-  it("finishes the run it is pressed in instead of writing anything", () => {
-    const state = apply(rowOf("1+2", top(0, 1)), skip);
-    expect(sketch(state)).toBe("1+2|");
-    expect(latexOf(state)).toBe("1+2");
-  });
-
-  it("leaves the root or the power the caret is in", () => {
-    expect(sketch(apply(rowOf("\\sqrt{1}", inside(1, "content", 0, 1)), skip))).toBe("\\sqrt{1}|");
-    expect(sketch(apply(rowOf("x^{2}", inside(1, "exponent", 0, 1)), skip))).toBe("x^{2}|");
-  });
-
-  it("goes from the numerator down to the denominator before leaving the fraction", () => {
-    expect(sketch(apply(rowOf("\\frac{1}{2}", inside(1, "numerator", 0, 1)), skip))).toBe("\\frac{1}{2|}");
-    expect(sketch(apply(rowOf("\\frac{1}{2}", inside(1, "numerator", 0, 1)), skip, skip))).toBe("\\frac{1}{2}|");
-  });
-
-  it("carries a fraction typed in one breath out to the row", () => {
-    expect(sketch(apply(rowOf(""), type("1"), { type: "divide" }, type("2"), skip, type("+3")))).toBe("\\frac{1}{2}+3|");
-  });
-
-  it("collapses a selection to its far end, whichever way it was dragged", () => {
-    expect(sketch(apply(rowSelecting("123", top(0, 1), top(0, 3)), skip))).toBe("123|");
-    expect(sketch(apply(rowSelecting("123", top(0, 3), top(0, 1)), skip))).toBe("123|");
-  });
-
-  it("does nothing at the end of the row", () => {
-    const state = rowOf("12", top(0, 2));
-    expect(reduce(state, skip)).toBe(state);
   });
 });
 

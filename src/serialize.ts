@@ -4,7 +4,8 @@ import { specFor } from "./registry";
 /**
  * `\cdot` always takes a trailing space: whatever follows may be a letter — including one
  * that lives in the next node entirely, such as the base of `x_{i}` — and `\cdotx` is not
- * a command. Parsing drops the space again, so the value stays stable across round trips.
+ * a command. Parsing recognises that one separator as command syntax, so the value stays
+ * stable across round trips while authored whitespace is preserved.
  */
 const serializeText = (value: string): string => value.split(TIMES).join("\\cdot ");
 

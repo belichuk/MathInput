@@ -99,24 +99,6 @@ export function previousPosition(root: FormulaNode[], position: CaretPosition): 
 }
 
 /**
- * The space bar: one step forward *past* whatever is in front of the caret, never into it.
- *
- * That is the rest of the text run being written, then over a whole formula standing next
- * to it, then out of the slot itself. A slot left this way hands the caret to the *end* of
- * the next one, because what is written there is written and the place to carry on is
- * after it: `\frac{1|}{2}` goes to `\frac{1}{2|}`, and the press after that leaves the
- * fraction. Null at the end of the row, where there is nothing left to step past.
- */
-export function skipForward(root: FormulaNode[], position: CaretPosition): CaretPosition | null {
-  const target = resolve(root, position.path);
-  if (!target) return null;
-  const node = target.array[target.index];
-  if (isText(node) && position.offset < node.value.length) return { path: position.path, offset: node.value.length };
-  if (isCompound(target.array[target.index + 1])) return positionAfterNode([...arrayPathOf(position.path), { index: target.index + 1 }]);
-  return exitForward(root, position.path, "end");
-}
-
-/**
  * The slot directly above or below this one, or null when nothing encloses the caret that has
  * one — at which point the row above or below is the answer, and that is the shell's business.
  *

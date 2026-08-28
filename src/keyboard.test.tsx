@@ -52,9 +52,10 @@ it("writes and edits x = (1+√2)/3 from the keyboard alone", () => {
   type("x=(1+√2");
   expect(latex()).toBe("x=\\left(1+\\sqrt{2}\\right)");
 
-  // Space steps out of the root, `)` out of the brackets, and `/` takes the whole bracketed
-  // group as a numerator.
-  type(" )/3");
+  // Leave the root, then `)` steps out of the brackets and `/` takes the whole group as a
+  // numerator.
+  press("ArrowRight");
+  type(")/3");
   expect(latex()).toBe("x=\\frac{\\left(1+\\sqrt{2}\\right)}{3}");
 
   // Back to the radicand: Tab walks numerator, then brackets, then the root inside them.
@@ -79,15 +80,25 @@ it("writes and edits x = (1+√2)/3 from the keyboard alone", () => {
  * reads the front page carefully.
  */
 it("writes what the README says it writes", () => {
-  const { type, latex } = editor();
+  const { type, press, latex } = editor();
 
-  // The space bar arrives as `beforeinput`, not as a keydown — which is what makes a phone's
-  // space bar and a desktop's the same key, and why it is typed here rather than pressed.
-  type("1/2 x^2 +\u221a16 =12");
+  type("1/2");
+  press("ArrowRight");
+  type("x^2");
+  press("ArrowRight");
+  type("+\u221a16");
+  press("ArrowRight");
+  type("=12");
 
   // The `\cdot` is the one nobody typed: `x` written straight against the fraction is
   // multiplying it, and the value says so rather than leaving it to be inferred.
   expect(latex()).toBe("\\frac{1}{2}\\cdot x^{2}+\\sqrt{16}=12");
+});
+
+it("writes spaces as ordinary text", () => {
+  const { type, latex } = editor();
+  type("A short sentence");
+  expect(latex()).toBe("A short sentence");
 });
 
 /**

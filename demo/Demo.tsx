@@ -129,7 +129,7 @@ export function AnswerField() {
           <MathInput value={latex} onChange={setLatex} placeholder="Type a formula" toolbar={toolbar} disabled={disabled} className="demo-math-input" style={mathInputStyle} />
           {disabled
             ? <p className="demo-hint">The field is <code>disabled</code>: the formula still renders and can be selected and copied, but nothing can be written or removed — an answer shown back to whoever wrote it.</p>
-            : <p className="demo-hint">Press <kbd>Enter</kbd> or use the row action to expand · <kbd>←</kbd> <kbd>→</kbd> moves through a formula · <kbd>Space</kbd> steps past what is in front of the caret · click to its right or press <kbd>End</kbd> to continue after it · <kbd>Esc</kbd> leaves the field</p>}
+            : <p className="demo-hint">Press <kbd>Enter</kbd> or use the row action to expand · <kbd>Space</kbd> writes a space · <kbd>←</kbd> <kbd>→</kbd> moves through a formula · click to its right or press <kbd>End</kbd> to continue after it · <kbd>Esc</kbd> leaves the field</p>}
         </section>
 
         <section className="demo-panel" aria-label="Raw value">
