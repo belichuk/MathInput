@@ -4,6 +4,7 @@ What changed in each version of the component. Versions follow [semantic version
 
 ## 0.6.0 — 2026-08-28
 
+- Text typed beside a formula is kept exactly as written; the editor no longer inserts an implicit `\cdot`.
 - Named functions (`sin`, `cos`, `tan`, `log`, `ln`, `lim`) are atoms: they render upright, are read aloud by name, and round-trip as KaTeX commands.
 - Type `sqrt`, function names, or Greek names such as `pi` to recognise them. Recognition is one undoable edit; Backspace immediately restores the literal text.
 - Absolute-value fences, Greek letters, and `≤`, `≥`, `≠` are supported. Type `<=`, `>=`, or `!=` for the relations.

@@ -8,7 +8,7 @@ A React field for writing mathematics the way it is written on paper — one for
 
 ![Typing ½ · x² + √16 = 12: the fraction stacks as it is typed, a multiplication sign appears where one was needed, the power raises, and the root draws itself over what it covers](https://raw.githubusercontent.com/belichuk/MathInput/main/docs/images/typing.gif)
 
-Every key in that recording is an ordinary one: `/` opened the fraction, `^` the power, `√` the root, and arrow keys leave their slots. What `onChange` handed back is `\frac{1}{2}\cdot x^{2}+\sqrt{16}=12` — ready to store, mark, or render with KaTeX. The `\cdot` is the only thing nobody typed: `x` written straight against a fraction is multiplying it, and the value says so rather than leaving it to be worked out.
+Every key in that recording is an ordinary one: `/` opened the fraction, `^` the power, `√` the root, and arrow keys leave their slots. What `onChange` handed back is `\frac{1}{2}x^{2}+\sqrt{16}=12` — ready to store, mark, or render with KaTeX.
 
 **Contents** · [Install](#install) · [Quick start](#quick-start) · [Props](#props) · [What can be typed](#what-can-be-typed) · [Styling](#styling) · [The value](#the-value) · [Recipes](#recipes) · [Accessibility](#accessibility) · [Migrating to 0.5.0](MIGRATING-0.5.0.md)
 
@@ -131,7 +131,7 @@ The formula still renders and can be selected and copied; only editing stops.
 1/2, `→`, x^2, `→`, +√16, `→`, =12
 ```
 
-and the field holds `\frac{1}{2}\cdot x^{2}+\sqrt{16}=12`. `Space` writes a normal space, so use the arrow keys, `Tab`, or `)` to leave a formula slot.
+and the field holds `\frac{1}{2}x^{2}+\sqrt{16}=12`. `Space` writes a normal space, so use the arrow keys, `Tab`, or `)` to leave a formula slot.
 
 The toolbar comes in three groups, divided: the formulas that have to be built — a square root, a cube root, a fraction, a power, brackets — then the four operators `+` `−` `:` `⋅`, then the two arrows that move the caret. Every button does what the matching key does, so a field can be filled in on a tablet with no keyboard at all. Each group is on by default and switched off on its own through `toolbar`. Subscripts have no button — `_` writes them. The rest is the keyboard:
 
@@ -143,7 +143,7 @@ The toolbar comes in three groups, divided: the formulas that have to be built �
 | `(` | Opens a bracket pair that grows to fit whatever is put in it |
 | `)` | Steps back out of the brackets it is typed in |
 | `*` | Written as `⋅` and emitted as `\cdot` |
-| a letter or digit typed against a formula | Gets a `⋅` in front of it: `\frac{1}{3}` then `x` is `\frac{1}{3}\cdot x`, and `\sqrt{2}` then `10` is `\sqrt{2}\cdot 10` |
+| text typed beside a formula | Is kept exactly as entered; type `*`, `×`, or `·` when multiplication is intended |
 | `√` `∛` | Open a square root and a cube root around what follows, the way `(` opens brackets. Not on most physical keyboards, but on every soft one's symbol page — and they survive dictation, autocorrect and paste |
 | `=` | Comes out of anything that cannot hold a relation — a numerator, a radicand, an exponent — and stops at the first thing that can, so `(x=1)` stays inside its brackets |
 | `Space` | Writes a space |
@@ -405,7 +405,7 @@ Every box in that formula is a slot the caret can be put in — by clicking it, 
 - Clicking past a formula's edge, or pressing `End`, continues after it.
 - Typing `=` comes out of whatever cannot hold a relation and stops at the first thing that can. A numerator, a radicand and an exponent cannot, so `10^=2` cannot be typed at all and `=` pressed deep inside `\frac{1}{\frac{1}{2}}` lands after the outer fraction. Brackets *can*, because `\left(x=1\right)` is a sentence: `=` typed inside them stays where it was typed. Which constructs can hold one is declared per construct rather than decided key by key.
 - `Backspace` removes the formula immediately behind the caret as one object, whatever it contains. Inside a slot it deletes normally; at the start of a slot it steps out — into the previous slot, or to just before the formula — leaving the content alone. Only when every slot of a formula is empty does the next `Backspace` remove that formula. `Delete` mirrors all of this forwards. Never more than one thing goes per keypress.
-- **A term written straight against a formula gets the multiplication sign nobody typed.** `\frac{1}{3}` then `x` is `\frac{1}{3}\cdot x`; so are `\sqrt{2}10` and `x^{2}10`. Juxtaposition *is* multiplication and it is written that way on paper, but the value leaves this field for something that is not a person — a marking script comparing two answers, or anything evaluating one — and that reader would otherwise have to guess where one term ended and the next began. Only in that direction: a letter or a digit written *before* a formula is left alone, because `2` then a fraction is how two and a half is written and `2\cdot\frac{1}{2}` is not what that means. Only letters and digits, too — `\frac{1}{2}, \frac{1}{3}` is a list and a comma is not arithmetic. And only while typing: a stored value is read back exactly as it was saved, so nothing is rewritten under an answer that was written before this release. The sign is an ordinary character once written; `Backspace` takes the letter, and a second `Backspace` takes the dot.
+- **Text beside a formula stays exactly as written.** The field is not limited to mathematical expressions, so it never infers multiplication or inserts a character the user did not type. Type `*`, `×`, or `·` for multiplication.
 - A sign typed after a sign replaces it, rather than being written beside it: `1+` then `−` is `1−`. Nobody means `1+−`, and the second press is the correction, so it is treated as one — which is the difference between a student fixing a slip with one key and fixing it with a backspace they have to think about. It applies to `+`, `−`, `:` and `⋅`, whether they come from keys or from the toolbar, and to nothing else: a sign following a digit, a bracket or a whole formula is written as written.
 - A selection spanning two slots deletes the covered part of each and keeps the formula: half a fraction is not a thing.
 - `Ctrl`/`Cmd`+`Z` undoes and `Shift`+`Ctrl`/`Cmd`+`Z` redoes. A run of typing undoes in one step, and moving the caret ends the run.
