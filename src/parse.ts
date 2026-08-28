@@ -1,9 +1,19 @@
-import { type FormulaNode, type TextNode, TIMES, TRAILING_TERM, frac, group, isText, normalize, power, sqrt, subscript, text } from "./model";
+import { type FormulaNode, type TextNode, TIMES, TRAILING_TERM, frac, group, isText, normalize, opname, power, sqrt, subscript, text } from "./model";
+import { type FenceShape, OPNAMES } from "./registry";
 
 /** Text is kept literally, apart from the equivalent multiplication and minus glyphs. */
 export const cleanFormulaText = (value: string): string => value.replace(/[*×·]/g, TIMES).replace(/−/g, "-");
 
-type Stop = "end" | "brace" | "bracket" | "paren";
+export const LATEX_CHARACTERS = {
+  "\\pi": "π", "\\theta": "θ", "\\alpha": "α", "\\beta": "β", "\\gamma": "γ", "\\delta": "δ",
+  "\\epsilon": "ε", "\\lambda": "λ", "\\mu": "μ", "\\sigma": "σ", "\\phi": "φ", "\\omega": "ω",
+  "\\le": "≤", "\\ge": "≥", "\\ne": "≠",
+} as const;
+const COMMAND_CHARACTERS = Object.entries(LATEX_CHARACTERS) as [keyof typeof LATEX_CHARACTERS, string][];
+export const latexForCharacter = (character: string): string | undefined =>
+  COMMAND_CHARACTERS.find(([, value]) => value === character)?.[0];
+
+type Stop = "end" | "brace" | "bracket" | "paren" | "bar";
 
 /**
  * Collects nodes while keeping the alternation invariant, and can hand back the
@@ -55,6 +65,7 @@ export function parseLatex(line: string): FormulaNode[] {
     if (stop === "brace") return line[position] === "}";
     if (stop === "bracket") return line[position] === "]";
     if (stop === "paren") return line[position] === ")" || line.startsWith("\\right)", position);
+    if (stop === "bar") return line[position] === "|" || line.startsWith("\\right|", position) || line.startsWith("\\right\\|", position);
     return false;
   }
 
@@ -106,12 +117,35 @@ export function parseLatex(line: string): FormulaNode[] {
         if (line[position] === " ") position += 1;
         continue;
       }
-      if (line[position] === "(" || line.startsWith("\\left(", position)) {
-        position += line[position] === "(" ? 1 : "\\left(".length;
-        const content = parseSequence("paren");
-        if (line.startsWith("\\right)", position)) position += "\\right)".length;
-        else if (line[position] === ")") position += 1;
-        builder.push(group(content));
+      const commandCharacter = COMMAND_CHARACTERS.find(([command]) =>
+        line.startsWith(command, position) && !/[A-Za-z]/.test(line[position + command.length] ?? ""),
+      );
+      if (commandCharacter) {
+        builder.pushText(commandCharacter[1]);
+        position += commandCharacter[0].length;
+        continue;
+      }
+      const opnameName = OPNAMES.find((name) => line.startsWith(`\\${name}`, position));
+      if (opnameName) {
+        builder.push(opname(opnameName));
+        position += opnameName.length + 1;
+        // A serializer-emitted separator is syntax; authored additional whitespace remains.
+        if (line[position] === " ") position += 1;
+        continue;
+      }
+      const fence: { shape: FenceShape; stop: Stop; open: string; closes: string[] } | null =
+        line[position] === "(" ? { shape: "paren", stop: "paren", open: "(", closes: ["\\right)", ")"] }
+          : line.startsWith("\\left(", position) ? { shape: "paren", stop: "paren", open: "\\left(", closes: ["\\right)", ")"] }
+            : line[position] === "|" ? { shape: "bar", stop: "bar", open: "|", closes: ["\\right\\|", "\\right|", "|"] }
+              : line.startsWith("\\left\\|", position) ? { shape: "bar", stop: "bar", open: "\\left\\|", closes: ["\\right\\|"] }
+                : line.startsWith("\\left|", position) ? { shape: "bar", stop: "bar", open: "\\left|", closes: ["\\right|"] }
+                  : null;
+      if (fence) {
+        position += fence.open.length;
+        const content = parseSequence(fence.stop);
+        const close = fence.closes.find((candidate) => line.startsWith(candidate, position));
+        if (close) position += close.length;
+        builder.push(group(content, fence.shape));
         continue;
       }
       if (line[position] === "^" || line[position] === "_") {

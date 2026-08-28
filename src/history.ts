@@ -23,7 +23,7 @@ export function undo<Snapshot>(history: History<Snapshot>, current: Snapshot): {
   const previous = history.past[history.past.length - 1];
   if (!previous) return null;
   return {
-    history: { past: history.past.slice(0, -1), future: [...history.future, { snapshot: current, tag: "" }], lastTag: "" },
+    history: { past: history.past.slice(0, -1), future: [...history.future, { snapshot: current, tag: previous.tag }], lastTag: "" },
     snapshot: previous.snapshot,
   };
 }

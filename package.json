@@ -1,6 +1,6 @@
 {
   "name": "@belichuk/math-input",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "A dependency-free React editor for entering mathematical working, emitting KaTeX-compatible LaTeX.",
   "license": "MIT",
   "author": "Nikolay Belichuk",
@@ -27,8 +27,7 @@
   ],
   "files": [
     "dist",
-    "CHANGELOG.md",
-    "MIGRATING-0.5.0.md"
+    "CHANGELOG.md"
   ],
   "main": "./dist/math-input.cjs",
   "module": "./dist/math-input.js",

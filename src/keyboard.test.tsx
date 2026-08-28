@@ -28,11 +28,16 @@ function editor(defaultValue = "") {
 
   return {
     field,
+    fields: () => [...host.querySelectorAll<HTMLElement>(".math-input__field")],
     latex: () => latex,
     type: (text: string) => act(() => {
       for (const character of text) field.dispatchEvent(new InputEvent("beforeinput", { inputType: "insertText", data: character, bubbles: true, cancelable: true }));
     }),
+    erase: () => act(() => { field.dispatchEvent(new InputEvent("beforeinput", { inputType: "deleteContentBackward", bubbles: true, cancelable: true })); }),
     press: (key: string, shiftKey = false) => act(() => { field.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true })); }),
+    eraseAt: (index: number) => act(() => { host.querySelectorAll<HTMLElement>(".math-input__field")[index]!.dispatchEvent(new InputEvent("beforeinput", { inputType: "deleteContentBackward", bubbles: true, cancelable: true })); }),
+    pressAt: (index: number, key: string, shiftKey = false) => act(() => { host.querySelectorAll<HTMLElement>(".math-input__field")[index]!.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true })); }),
+    focusAt: (index: number) => act(() => { host.querySelectorAll<HTMLElement>(".math-input__field")[index]!.dispatchEvent(new FocusEvent("focusin", { bubbles: true })); }),
     run: (path: string) => field.querySelector<HTMLElement>(`.math-input__text[data-path="${path}"]`)!,
   };
 }
@@ -90,15 +95,59 @@ it("writes what the README says it writes", () => {
   press("ArrowRight");
   type("=12");
 
-  // The `\cdot` is the one nobody typed: `x` written straight against the fraction is
-  // multiplying it, and the value says so rather than leaving it to be inferred.
-  expect(latex()).toBe("\\frac{1}{2}\\cdot x^{2}+\\sqrt{16}=12");
+  expect(latex()).toBe("\\frac{1}{2}x^{2}+\\sqrt{16}=12");
 });
 
 it("writes spaces as ordinary text", () => {
   const { type, latex } = editor();
   type("A short sentence");
   expect(latex()).toBe("A short sentence");
+});
+
+it("keeps every space typed inside a formula slot", () => {
+  const { type, latex, run } = editor();
+  type("1/2  ");
+  expect(latex()).toBe("\\frac{1}{2  }");
+  expect(run("1.denominator/0").textContent).toBe("2  ");
+});
+
+it("recognises typed tokens and restores their literal spelling with Backspace", () => {
+  const { type, erase, latex } = editor();
+  type("sqrt");
+  expect(latex()).toBe("\\sqrt{}");
+  erase();
+  expect(latex()).toBe("sqrt");
+  erase();
+  expect(latex()).toBe("");
+});
+
+it("does not recognise a token at the end of a longer letter run", () => {
+  const { type, latex } = editor();
+  type("arcsin");
+  expect(latex()).toBe("arcsin");
+});
+
+it("splits a row at a row-level caret", () => {
+  const { type, press, latex } = editor();
+  type("ab");
+  press("ArrowLeft");
+  press("Enter");
+  expect(latex()).toBe("a\nb");
+});
+
+it("keeps a formula whole when Enter is pressed inside one of its slots", () => {
+  const { type, press, latex } = editor();
+  type("1/2");
+  press("Enter");
+  expect(latex()).toBe("\\frac{1}{2}\n");
+});
+
+it("merges adjacent rows at the first row boundary", () => {
+  const { eraseAt, focusAt, latex, pressAt } = editor("a\nb");
+  focusAt(1);
+  pressAt(1, "Home");
+  eraseAt(1);
+  expect(latex()).toBe("ab");
 });
 
 /**

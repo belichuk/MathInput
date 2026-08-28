@@ -32,7 +32,7 @@ const pinned = (host: HTMLElement) => host.querySelectorAll(".math-input__toolba
  * deprecation — the new shape, the old shape mapped onto it, and a warning that says what to
  * write instead; the removal waits for 0.7.0, which gives a host a whole minor version in
  * which both spellings are true at once. That is worth the eighty bytes it costs, and it is
- * why the codemod in MIGRATING-0.5.0.md can be run whenever it suits rather than on upgrade
+ * why the codemod can be run whenever it suits rather than on upgrade
  * day.
  */
 describe("the toolbar props that became one prop", () => {

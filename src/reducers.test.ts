@@ -34,24 +34,16 @@ describe("insertText", () => {
     expect(sketch(apply(rowOf("\\sqrt{}", inside(1, "content", 0)), type("9")))).toBe("\\sqrt{9|}");
   });
 
-  /**
-   * A term written straight against a formula is multiplying it, and the value now says so.
-   *
-   * `\\frac{1}{3}x` is a fraction times x to anybody reading it, and juxtaposition is how that
-   * is written on paper — but the value leaves this field for something that is not a person,
-   * and a marking script comparing two answers should not have to work out where one term
-   * ended and the next began.
-   */
   describe("a term written against a formula", () => {
-    it("writes the multiplication sign nobody typed", () => {
-      expect(sketch(apply(rowOf("\\frac{1}{3}", top(2)), type("x")))).toBe("\\frac{1}{3}\\cdot x|");
-      expect(sketch(apply(rowOf("\\sqrt{2}", top(2)), type("1"), type("0")))).toBe("\\sqrt{2}\\cdot 10|");
-      expect(sketch(apply(rowOf("x^{2}", top(2)), type("1"), type("0")))).toBe("x^{2}\\cdot 10|");
+    it("keeps the text exactly as typed", () => {
+      expect(sketch(apply(rowOf("\\frac{1}{3}", top(2)), type("x")))).toBe("\\frac{1}{3}x|");
+      expect(sketch(apply(rowOf("\\sqrt{2}", top(2)), type("1"), type("0")))).toBe("\\sqrt{2}10|");
+      expect(sketch(apply(rowOf("x^{2}", top(2)), type("1"), type("0")))).toBe("x^{2}10|");
     });
 
-    it("does it at any depth, because the junction is what it looks at", () => {
+    it("does so at any depth", () => {
       expect(sketch(apply(rowOf("\\frac{\\sqrt{2}}{3}", inside(1, "numerator", 2)), type("x"))))
-        .toBe("\\frac{\\sqrt{2}\\cdot x|}{3}");
+        .toBe("\\frac{\\sqrt{2}x|}{3}");
     });
 
     it("leaves a sign, a relation and a bracket alone — they are already the operator", () => {
@@ -97,6 +89,11 @@ describe("insertText", () => {
 });
 
 describe("one sign typed after another", () => {
+  it("combines relation digraphs rather than replacing the first character", () => {
+    expect(sketch(apply(rowOf(""), type("<"), type("=")))).toBe("\\le|");
+    expect(sketch(apply(rowOf(""), type(">"), type("=")))).toBe("\\ge|");
+    expect(sketch(apply(rowOf(""), type("!"), type("=")))).toBe("\\ne|");
+  });
   it("writes the new sign over the old one", () => {
     expect(sketch(apply(rowOf("1+", top(0, 2)), type("-")))).toBe("1-|");
     expect(sketch(apply(rowOf("1-", top(0, 2)), type("*")))).toBe("1\\cdot |");
@@ -126,6 +123,13 @@ describe("one sign typed after another", () => {
 
   it("works in the middle of a run, where the caret is", () => {
     expect(sketch(apply(rowOf("1+2", top(0, 2)), type(":")))).toBe("1:|2");
+  });
+});
+
+describe("absolute-value fences", () => {
+  it("opens with a bar and closes the innermost bar", () => {
+    expect(sketch(apply(rowOf(""), { type: "closeGroup", character: "|" }, type("x"), { type: "closeGroup", character: "|" })))
+      .toBe("\\left|x\\right||");
   });
 });
 

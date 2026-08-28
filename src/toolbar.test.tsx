@@ -67,6 +67,12 @@ describe("the toolbar", () => {
     expect(host.querySelectorAll(".math-input__field")).toHaveLength(2);
   });
 
+  it("appends a row from the row button without splitting the active formula", () => {
+    const host = render(<MathInput toolbar={{ autoHide: false }} defaultValue="12" />);
+    act(() => host.querySelector<HTMLButtonElement>(".math-input__new-row")!.click());
+    expect([...host.querySelectorAll<HTMLElement>(".math-input__field")].map((field) => field.textContent)).toEqual(["12", "​"]);
+  });
+
   it("stops every button while the field is disabled", () => {
     const host = render(<MathInput toolbar={{ autoHide: false }} disabled />);
     const buttons = [...host.querySelectorAll<HTMLButtonElement>(".math-input__tool")];

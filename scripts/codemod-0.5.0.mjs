@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from "node:fs";
  *
  *   node scripts/codemod-0.5.0.mjs src/**\/*.tsx
  *
- * The same script is printed in MIGRATING-0.5.0.md, because a host has no reason to clone this
+ * This script is kept in the repository so a host can use it without re-creating the migration.
  * repository to get it. It is a source rewrite rather than a parse: a real codemod would want
  * a JSX parser, and a dependency of its own to supply one, for a rename of three props on one
  * component. What that costs is the caveats at the bottom of this file — so read the diff.

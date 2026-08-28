@@ -7,7 +7,7 @@
  * What each construct *is* lives in `registry.ts`, which this file reads. The dependency runs
  * one way: the registry imports nothing from here but types.
  */
-import { type ConstructKind, specOf } from "./registry";
+import { type ConstructKind, type FenceShape, type OpName, specOf } from "./registry";
 
 export type TextNode = { type: "text"; value: string };
 /** `index` is `null` for a plain square root, an array for `\sqrt[n]{…}`. */
@@ -16,8 +16,10 @@ export type FracNode = { type: "frac"; numerator: FormulaNode[]; denominator: Fo
 /** Powers own their base, so `10^{2}` is a single object rather than text beside a superscript. */
 export type PowerNode = { type: "power"; base: FormulaNode[]; exponent: FormulaNode[] };
 export type SubscriptNode = { type: "subscript"; base: FormulaNode[]; subscript: FormulaNode[] };
-export type GroupNode = { type: "group"; content: FormulaNode[] };
-export type CompoundNode = SqrtNode | FracNode | PowerNode | SubscriptNode | GroupNode;
+export type GroupNode = { type: "group"; content: FormulaNode[]; data: FenceShape };
+/** A named operator is a compound atom: it has no caret-addressable slot. */
+export type OpnameNode = { type: "opname"; data: OpName };
+export type CompoundNode = SqrtNode | FracNode | PowerNode | SubscriptNode | GroupNode | OpnameNode;
 export type FormulaNode = TextNode | CompoundNode;
 export type NodeKind = FormulaNode["type"];
 
@@ -46,8 +48,8 @@ export const TIMES = "⋅";
  * Neither is global or sticky, so neither carries a `lastIndex` and one instance is safely
  * shared by every caller.
  */
-export const TRAILING_TERM = /[A-Za-z0-9.,]+$/;
-export const LEADING_TERM = /^[A-Za-z0-9.,]+/;
+export const TRAILING_TERM = /[A-Za-zαβγδελμσφωπθΑΒΓΔΕΛΜΣΦΩΠΘ0-9.,]+$/;
+export const LEADING_TERM = /^[A-Za-zαβγδελμσφωπθΑΒΓΔΕΛΜΣΦΩΠΘ0-9.,]+/;
 
 export const text = (value = ""): TextNode => ({ type: "text", value });
 export const emptyContent = (): FormulaNode[] => [text()];
@@ -55,7 +57,8 @@ export const sqrt = (content = emptyContent(), index: FormulaNode[] | null = nul
 export const frac = (numerator = emptyContent(), denominator = emptyContent()): FracNode => ({ type: "frac", numerator, denominator });
 export const power = (base = emptyContent(), exponent = emptyContent()): PowerNode => ({ type: "power", base, exponent });
 export const subscript = (base = emptyContent(), sub = emptyContent()): SubscriptNode => ({ type: "subscript", base, subscript: sub });
-export const group = (content = emptyContent()): GroupNode => ({ type: "group", content });
+export const group = (content = emptyContent(), data: FenceShape = "paren"): GroupNode => ({ type: "group", content, data });
+export const opname = (data: OpName): OpnameNode => ({ type: "opname", data });
 
 export const isText = (node: FormulaNode | null | undefined): node is TextNode => node?.type === "text";
 export const isCompound = (node: FormulaNode | null | undefined): node is CompoundNode => node !== null && node !== undefined && node.type !== "text";
@@ -87,6 +90,8 @@ export function branchesOf(node: FormulaNode): Branch[] {
  */
 export function buildConstruct(kind: ConstructKind, filled: Partial<Record<BranchKey, FormulaNode[]>> = {}): CompoundNode {
   const node: Record<string, unknown> = { type: kind };
+  if (kind === "opname") node.data = "sin";
+  if (kind === "group") node.data = "paren";
   for (const slot of specOf(kind).slots) node[slot.key] = filled[slot.key] ?? (slot.optional ? null : emptyContent());
   return node as unknown as CompoundNode;
 }

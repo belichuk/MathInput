@@ -1,6 +1,6 @@
 import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./MathInput.css";
-import { type FormulaNode, type SelectionRange, collapsedAt, encodePath, isBlank, samePosition } from "./model";
+import { type FormulaNode, type SelectionRange, collapsedAt, encodePath, isBlank, normalize, samePosition, text, textAt } from "./model";
 import { clampPosition, rowEnd, rowStart, stepThroughSlots, stepVertically } from "./caret";
 import { type Action, type CompoundKind, type RowState, reduce } from "./reducers";
 import { parseLatex } from "./parse";
@@ -9,6 +9,7 @@ import { renderNodes } from "./render";
 import { slotAt, speakRow } from "./speech";
 import { applySelection, caretScrollOffset, positionFromPoint, repairField, selectionFromDom } from "./selection";
 import { type History, emptyHistory, record, redo, undo } from "./history";
+import { matchToken } from "./registry";
 
 /**
  * What the toolbar shows, and when.
@@ -185,7 +186,7 @@ function warnOfRenamedProps(props: LegacyToolbarProps) {
   for (const [was, now] of RENAMED) {
     if (props[was] === undefined || warnedOf.has(was)) continue;
     warnedOf.add(was);
-    console.warn(`MathInput: \`${was}\` is deprecated and goes in 0.7.0 — write \`toolbar={{ ${now}: ${props[was]} }}\`. See MIGRATING-0.5.0.md.`);
+    console.warn(`MathInput: \`${was}\` is deprecated and goes in 0.7.0 — write \`toolbar={{ ${now}: ${props[was]} }}\`. See CHANGELOG.md.`);
   }
 }
 
@@ -222,7 +223,8 @@ const KEYED_ACTION: Record<string, Action> = {
   _: { type: "script", kind: "subscript" },
   "=": { type: "equals" },
   "(": { type: "insertCompound", kind: "group" },
-  ")": { type: "closeGroup" },
+  ")": { type: "closeGroup", character: ")" },
+  "|": { type: "closeGroup", character: "|" },
   // The character opens the formula, the way `/` does. It is not on most keyboards, but it is
   // on every soft one's symbol page, it survives dictation and autocorrect, and it can be
   // pasted — which until now were the only ways to get a root without reaching for the mouse.
@@ -552,6 +554,17 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     });
   }, [commit]);
 
+  /** Recognition follows ordinary insertion as its own history entry, so one undo restores text. */
+  const recognise = useCallback((rowId: string) => {
+    const current = live.current;
+    const row = current.rows.find((candidate) => candidate.id === rowId);
+    const caret = current.caret?.rowId === rowId ? current.caret.range.focus : null;
+    const run = row && caret ? textAt(row.content, caret.path) : null;
+    const letters = run ? run.value.slice(0, caret!.offset).match(/[A-Za-z]+$/)?.[0] : undefined;
+    const target = letters ? matchToken(letters) : undefined;
+    if (target && letters) dispatch(rowId, { type: "recognise", token: letters, target }, `recognise:${rowId}`);
+  }, [dispatch]);
+
   const restore = useCallback((direction: "undo" | "redo") => {
     const result = (direction === "undo" ? undo : redo)(history.current, live.current);
     if (!result) return;
@@ -566,12 +579,57 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     if (document.activeElement !== fields.current.get(id)) pendingFocus.current = id;
   }, []);
 
+  const splitRow = useCallback(() => {
+    const current = live.current;
+    const active = current.caret;
+    const index = active ? current.rows.findIndex((candidate) => candidate.id === active.rowId) : -1;
+    const source = index >= 0 ? current.rows[index] : null;
+    const position = active?.range.focus;
+    if (!source || !position) return;
+    const nodeIndex = position.path[0]?.index;
+    if (nodeIndex === undefined) return;
+    // A row is the unit Enter splits. From inside a nested slot, first step past the
+    // enclosing top-level formula, then make the next row. This keeps the formula whole
+    // instead of trying to create a row boundary through one of its slots.
+    const [left, right] = position.path.length === 1
+      ? (() => {
+        const run = textAt(source.content, position.path);
+        if (!run) return [null, null] as const;
+        return [
+          normalize([...source.content.slice(0, nodeIndex), text(run.value.slice(0, position.offset))]),
+          normalize([text(run.value.slice(position.offset)), ...source.content.slice(nodeIndex + 1)]),
+        ] as const;
+      })()
+      : [normalize(source.content.slice(0, nodeIndex + 1)), normalize(source.content.slice(nodeIndex + 1))] as const;
+    if (!left || !right) return;
+    const row: Row = { id: crypto.randomUUID(), content: right };
+    history.current = record(history.current, current);
+    pendingFocus.current = row.id;
+    commit({ rows: [...current.rows.slice(0, index), { ...source, content: left }, row, ...current.rows.slice(index + 1)], caret: { rowId: row.id, range: collapsedAt(rowStart()) } });
+  }, [commit]);
+
   const createRow = useCallback(() => {
     const current = live.current;
     const row: Row = { id: crypto.randomUUID(), content: parseLatex("") };
     history.current = record(history.current, current);
     pendingFocus.current = row.id;
     commit({ rows: [...current.rows, row], caret: { rowId: row.id, range: collapsedAt(rowStart()) } });
+  }, [commit]);
+
+  const mergeRow = useCallback((rowId: string, direction: "backward" | "forward") => {
+    const current = live.current;
+    const index = current.rows.findIndex((row) => row.id === rowId);
+    const otherIndex = index + (direction === "backward" ? -1 : 1);
+    if (index < 0 || otherIndex < 0 || otherIndex >= current.rows.length) return false;
+    const firstIndex = Math.min(index, otherIndex);
+    const first = current.rows[firstIndex];
+    const second = current.rows[firstIndex + 1];
+    const merged: Row = { ...first, content: normalize([...first.content, ...second.content]) };
+    history.current = record(history.current, current);
+    pendingFocus.current = merged.id;
+    const caret = direction === "backward" ? rowEnd(first.content) : current.caret?.range.focus ?? rowStart();
+    commit({ rows: [...current.rows.slice(0, firstIndex), merged, ...current.rows.slice(firstIndex + 2)], caret: { rowId: merged.id, range: collapsedAt(caret) } });
+    return true;
   }, [commit]);
 
   const removeRow = useCallback((id: string) => {
@@ -746,7 +804,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
       // is only stopped, not answered here.
       if (key.key === "Enter") {
         take(!key.shiftKey);
-        if (!key.shiftKey) createRow();
+        if (!key.shiftKey) splitRow();
         return;
       }
       if (key.key.length === 1 || key.key === "Backspace" || key.key === "Delete") take(false);
@@ -772,12 +830,27 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
       const data = input.data ?? input.dataTransfer?.getData("text") ?? "";
       if (input.inputType === "historyUndo") return restore("undo");
       if (input.inputType === "historyRedo") return restore("redo");
-      if (BACKWARD_DELETIONS.includes(input.inputType)) return dispatch(rowId, { type: "delete", direction: "backward" }, `delete:${rowId}`);
-      if (FORWARD_DELETIONS.includes(input.inputType)) return dispatch(rowId, { type: "delete", direction: "forward" }, `delete:${rowId}`);
-      if (input.inputType === "insertParagraph" || input.inputType === "insertLineBreak") return createRow();
+      if (BACKWARD_DELETIONS.includes(input.inputType)) {
+        const recognised = `recognise:${rowId}`;
+        const mostRecentUndo = history.current.future[history.current.future.length - 1];
+        if (history.current.lastTag === recognised || mostRecentUndo?.tag === recognised) return restore("undo");
+        const row = live.current.rows.find((candidate) => candidate.id === rowId);
+        const caret = live.current.caret?.rowId === rowId ? live.current.caret.range.focus : null;
+        if (row && caret && caret.path.length === 1 && caret.offset === 0 && caret.path[0].index === 0 && mergeRow(rowId, "backward")) return;
+        return dispatch(rowId, { type: "delete", direction: "backward" }, `delete:${rowId}`);
+      }
+      if (FORWARD_DELETIONS.includes(input.inputType)) {
+        const row = live.current.rows.find((candidate) => candidate.id === rowId);
+        const caret = live.current.caret?.rowId === rowId ? live.current.caret.range.focus : null;
+        const atEnd = row && caret && caret.path.length === 1 && caret.path[0].index === row.content.length - 1 && caret.offset === (textAt(row.content, caret.path)?.value.length ?? -1);
+        if (atEnd && mergeRow(rowId, "forward")) return;
+        return dispatch(rowId, { type: "delete", direction: "forward" }, `delete:${rowId}`);
+      }
+      if (input.inputType === "insertParagraph" || input.inputType === "insertLineBreak") return splitRow();
       if (!input.inputType.startsWith("insert")) return;
       const keyed = data.length === 1 ? KEYED_ACTION[data] : undefined;
       dispatch(rowId, keyed ?? { type: "insertText", text: data }, keyed ? "" : `type:${rowId}`);
+      if (!keyed) recognise(rowId);
     };
 
     container.addEventListener("keydown", onKeyDown);
@@ -788,7 +861,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
       container.removeEventListener("keyup", onKeyUp);
       container.removeEventListener("beforeinput", onBeforeInput);
     };
-  }, [disabled, dispatch, createRow, restore]);
+  }, [disabled, dispatch, mergeRow, recognise, restore, splitRow]);
 
   /** Undoes whatever reached the DOM without going through a reducer. */
   const repair = useCallback((rowId: string, field: HTMLDivElement) => {
@@ -803,8 +876,8 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     // Undo the IME's direct DOM edits so React's next render diffs against reality,
     // then apply the composed text as one ordinary insertion.
     repair(rowId, field);
-    if (data) dispatch(rowId, { type: "insertText", text: data });
-  }, [repair, dispatch]);
+    if (data) { dispatch(rowId, { type: "insertText", text: data }, `type:${rowId}`); recognise(rowId); }
+  }, [repair, dispatch, recognise]);
 
   // Native selection gestures — Shift+Arrow, double-click, Select All — are left to the
   // browser and read back here, rather than each being given its own reducer action.

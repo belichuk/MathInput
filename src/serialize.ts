@@ -1,5 +1,6 @@
 import { type FormulaNode, TIMES } from "./model";
 import { specFor } from "./registry";
+import { latexForCharacter } from "./parse";
 
 /**
  * `\cdot` always takes a trailing space: whatever follows may be a letter — including one
@@ -7,7 +8,9 @@ import { specFor } from "./registry";
  * a command. Parsing recognises that one separator as command syntax, so the value stays
  * stable across round trips while authored whitespace is preserved.
  */
-const serializeText = (value: string): string => value.split(TIMES).join("\\cdot ");
+const serializeText = (value: string): string => [...value].map((character) =>
+  character === TIMES ? "\\cdot " : latexForCharacter(character) ?? character,
+).join("");
 
 /**
  * A run is its own text; everything else is written the way its registry row says, which is

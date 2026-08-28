@@ -202,6 +202,12 @@
   display: none;
 }
 
+/* Spaces belong to the document now. Keep every authored one visible inside a text run while
+   the field itself remains a single horizontally-scrollable line. */
+.math-input__text {
+  white-space: pre;
+}
+
 /*
  * An operation is set with space around it, which is what makes `2 + 3` an addition of two
  * numbers rather than one run of ink. TeX's amounts: a medium space either side of a binary
@@ -230,6 +236,11 @@
  */
 .math-input__token--variable {
   font-style: italic;
+}
+
+/* Named operators are words in mathematics, not variables multiplied together. */
+.math-input__opname {
+  font-style: normal;
 }
 
 .math-input__token--number {

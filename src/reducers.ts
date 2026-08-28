@@ -1,9 +1,9 @@
 import {
   type BranchKey, type CaretPosition, type CompoundNode, type FormulaNode, type Path, type SelectionRange,
-  arrayPathOf, branchesOf, branchKeys, branchOf, buildConstruct, collapsedAt, emptyContent, enclosingNodePath, isCollapsed, isCompound, isShallowEmpty, isText,
+  arrayPathOf, branchesOf, branchKeys, branchOf, buildConstruct, collapsedAt, emptyContent, enclosingNodePath, isCollapsed, isCompound, isShallowEmpty, isText, opname,
   isBlank, LEADING_TERM, nextBoundary, normalize, orderedRange, previousBoundary, resolve, resolveArray, resolveNode, samePath, slotPath, stepOf, text, textAt, TIMES, TRAILING_TERM, updateArray, withBranch,
 } from "./model";
-import { type AnyInsertion, type InsertKind, KEY_INSERTIONS, TOOL_INSERTIONS, specFor, specOf } from "./registry";
+import { type AnyInsertion, type InsertKind, type TokenTarget, KEY_INSERTIONS, TOOL_INSERTIONS, fenceOf, specFor, specOf } from "./registry";
 import { cleanFormulaText, parseLatex } from "./parse";
 import { endOfArray, exitBackward, exitForward, nextPosition, positionAfterNode, previousPosition, rowEnd, rowStart, startOfArray } from "./caret";
 
@@ -20,6 +20,7 @@ export type CompoundKind = InsertKind;
 
 export type Action =
   | { type: "insertText"; text: string }
+  | { type: "recognise"; token: string; target: TokenTarget }
   /** Pasted text, read as a formula when it is one and written literally when it is not. */
   | { type: "paste"; text: string }
   /** Toolbar insertion. Powers and subscripts adopt the preceding term, as typing `^`/`_` does. */
@@ -29,8 +30,8 @@ export type Action =
   | { type: "script"; kind: "power" | "subscript" }
   /** `=` comes out to the row first, so it always separates whole formulas. */
   | { type: "equals" }
-  /** `)` leaves the brackets it is typed in, rather than adding a stray one. */
-  | { type: "closeGroup" }
+  /** A closing fence leaves its matching group, rather than adding a stray character. */
+  | { type: "closeGroup"; character?: ")" | "|" }
   | { type: "delete"; direction: "backward" | "forward" }
   | { type: "move"; direction: "backward" | "forward" }
   | { type: "moveToEdge"; edge: "start" | "end" }
@@ -160,41 +161,13 @@ function replacesSign(content: FormulaNode[], caret: CaretPosition, value: strin
   return node !== null && caret.offset > 0 && isSign(node.value[caret.offset - 1]);
 }
 
-/**
- * What may be written against a formula with nothing between it and the formula.
- *
- * `LEADING_TERM` — which is what the rest of this file means by a term — includes `.` and `,`,
- * and neither belongs here. A comma after a fraction is a list (`\frac{1}{2}, \frac{1}{3}`) and
- * a full stop is very often the end of a sentence; writing `\frac{1}{2}\cdot ,` for either would
- * turn punctuation into arithmetic. A letter or a digit has no such second reading.
- */
-const OPENS_A_TERM = /^[A-Za-z0-9]/;
-
-/**
- * Whether what is being typed needs the multiplication sign nobody typed.
- *
- * `\frac{1}{3}x` is a fraction times x, and so are `\sqrt{2}10` and `x^{2}10` — juxtaposition
- * is multiplication, and it is written that way on paper. But a value read by something other
- * than a person has to be *told*: a marking script comparing answers, or anything evaluating
- * one, would otherwise have to guess where a term ended and the next began, and guessing is
- * exactly what an editor exists to make unnecessary. So the sign is written, and what leaves the
- * field says what it means.
- *
- * The condition is entirely local, and it is the junction rather than the keystroke: a letter or
- * a digit written at the very start of a run whose left-hand neighbour is a construct. Depth
- * makes no difference — the numerator of a fraction is an array like any other — and neither
- * does how the character arrived, so pasting `10` after a root reads the same as typing it.
- *
- * **Only this direction.** Text written *before* a construct is left alone, and not for want of
- * symmetry: `2` then a fraction is how somebody writes two and a half, and `2\cdot\frac{1}{2}`
- * is not what they meant. Which of the two readings a host wants is a real question — mixed
- * numbers are a serialisation decision this release does not take — and the answer to it should
- * not be pre-empted by a rule about spacing.
- */
-function juxtaposesConstruct(content: FormulaNode[], caret: CaretPosition, value: string): boolean {
-  if (caret.offset !== 0 || !OPENS_A_TERM.test(value)) return false;
-  const target = resolve(content, caret.path);
-  return target !== null && isText(target.array[target.index]) && isCompound(target.array[target.index - 1]);
+const COMBINED_OPERATORS: Record<string, string> = { "<=": "≤", ">=": "≥", "!=": "≠" };
+function correctedOperator(content: FormulaNode[], caret: CaretPosition, value: string): { value: string; replace: number } {
+  const node = textAt(content, caret.path);
+  const pair = node && caret.offset > 0 ? `${node.value[caret.offset - 1]}${value}` : "";
+  const combined = COMBINED_OPERATORS[pair];
+  if (combined) return { value: combined, replace: 1 };
+  return { value, replace: replacesSign(content, caret, value) ? 1 : 0 };
 }
 
 type Capture = { array: FormulaNode[]; index: number; offset: number; term: FormulaNode[] };
@@ -237,8 +210,10 @@ function takeFollowingTerm(array: FormulaNode[], index: number, offset: number):
 const buildNode = (insertion: AnyInsertion, term: FormulaNode[]): CompoundNode => {
   const written: Partial<Record<BranchKey, FormulaNode[]>> = {};
   for (const [branch, value] of Object.entries(insertion.writes ?? {})) written[branch as BranchKey] = [text(value as string)];
-  if (insertion.adopts && !isBlank(term)) written[specOf(insertion.kind).adopted] = term;
-  return buildConstruct(insertion.kind, written);
+  const adopted = specOf(insertion.kind).adopted;
+  if (insertion.adopts && !isBlank(term) && adopted) written[adopted] = term;
+  const node = buildConstruct(insertion.kind, written);
+  return insertion.data && node.type === "group" ? { ...node, data: insertion.data } : node;
 };
 
 /**
@@ -425,8 +400,27 @@ export function reduce(state: RowState, action: Action): RowState {
       const value = cleanFormulaText(action.text);
       if (!value) return state;
       const { content, caret } = takeSelection(state);
-      const written = juxtaposesConstruct(content, caret, value) ? TIMES + value : value;
-      return insertTextAt(content, caret, written, replacesSign(content, caret, value) ? 1 : 0);
+      const correction = correctedOperator(content, caret, value);
+      return insertTextAt(content, caret, correction.value, correction.replace);
+    }
+    case "recognise": {
+      if (!isCollapsed(state.selection)) return state;
+      const caret = state.selection.focus;
+      const target = resolve(state.content, caret.path);
+      const run = target?.array[target?.index];
+      if (!target || !isText(run) || run.value.slice(caret.offset - action.token.length, caret.offset) !== action.token) return state;
+      const before = run.value.slice(0, caret.offset - action.token.length);
+      const after = run.value.slice(caret.offset);
+      if (action.target.type === "character") {
+        const value = before + action.target.value + after;
+        return settle(updateArray(state.content, arrayPathOf(caret.path), (array) => replaceNode(array, target.index, text(value))), { path: caret.path, offset: before.length + action.target.value.length });
+      }
+      const node = action.target.type === "construct" ? buildConstruct("sqrt") : opname(action.target.data);
+      const array = [...target.array.slice(0, target.index), text(before), node, text(after), ...target.array.slice(target.index + 1)];
+      const content = updateArray(state.content, arrayPathOf(caret.path), () => array);
+      const nodePath = [...arrayPathOf(caret.path), { index: target.index + 1 }];
+      const next = node.type === "sqrt" ? startOfArray(slotPath(nodePath, "content")) : { path: [...arrayPathOf(caret.path), { index: target.index + 2 }], offset: 0 };
+      return settle(content, next);
     }
     // Which slot each of these opens at, and whether it adopts the term in front of it, is
     // the registry's business rather than this file's.
@@ -456,10 +450,13 @@ export function reduce(state: RowState, action: Action): RowState {
       // second arm here.
       const nodePath = isCollapsed(state.selection) ? enclosingNodePath(state.selection.focus.path) : null;
       const node = nodePath ? resolveNode(state.content, nodePath) : null;
-      const closes = isCompound(node) && specFor(node).closedBy === ")";
+      const close = action.character ?? ")";
+      const closes = isCompound(node) && node.type === "group" &&
+        ((close === ")" && specFor(node).closedBy === ")") || (close === "|" && fenceOf(node) === "bar"));
       if (nodePath && closes) return { content: state.content, selection: collapsedAt({ path: [...arrayPathOf(nodePath), { index: stepOf(nodePath).index + 1 }], offset: 0 }) };
+      if (close === "|") return insertCompound(state, { kind: "group", adopts: false, caret: "content", data: "bar" });
       const { content, caret } = takeSelection(state);
-      return insertTextAt(content, caret, ")");
+      return insertTextAt(content, caret, close);
     }
     case "delete": return deleteAt(state, action.direction);
     case "move": {

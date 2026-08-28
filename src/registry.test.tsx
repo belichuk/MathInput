@@ -76,7 +76,9 @@ describe("every construct in the registry", () => {
   });
 
   it.each(CONSTRUCT_KINDS)("%s — adopts a preceding term into one of its own slots", (kind) => {
-    expect(specOf(kind).slots.map((slot) => slot.key)).toContain(specOf(kind).adopted);
+    const spec = specOf(kind);
+    if (spec.slots.length === 0) expect(spec.adopted).toBeUndefined();
+    else expect(spec.slots.map((slot) => slot.key)).toContain(spec.adopted);
   });
 
   it.each(CONSTRUCT_KINDS)("%s — pairs its slots vertically without ambiguity", (kind) => {
@@ -135,7 +137,7 @@ describe("every construct in the registry", () => {
     expect([...drawn!.querySelectorAll<HTMLElement>("[data-slot]")].map((slot) => slot.dataset.slot))
       .toEqual(specOf(kind).slots.map((slot) => slot.key));
     // And what is written inside actually reaches the page rather than the tree alone.
-    expect(host.textContent).toBe(`a${"1".repeat(specOf(kind).slots.length)}b`);
+    expect(host.textContent).toBe(`a${kind === "opname" ? "sin" : "1".repeat(specOf(kind).slots.length)}b`);
   });
 
   it.each(CONSTRUCT_KINDS)("%s — gives every address it renders a node in the tree it came from", (kind) => {
@@ -199,7 +201,7 @@ describe("every trigger in the registry", () => {
     const state = reduce(rowOf("7", top(0, 1)), action);
     const built = state.content.find((node) => node.type === insertion.kind);
     expect(built, latexOf(state)).toBeDefined();
-    const adopted = specOf(insertion.kind).adopted;
+    const adopted = specOf(insertion.kind).adopted!;
     const held = serializeToLatex((built as never as Record<string, FormulaNode[]>)[adopted] ?? []);
     // A trigger that adopts took the 7; one that does not left it where it was written.
     expect(held).toBe(insertion.adopts ? "7" : "");

@@ -69,6 +69,19 @@ type SlotSpec<K extends ConstructKind> = {
  * a `bar` fence and nothing else, which is the point of the shape being a datum.
  */
 export type FenceShape = "paren" | "bracket" | "brace" | "bar";
+export const OPNAMES = ["sin", "cos", "tan", "log", "ln", "lim"] as const;
+export type OpName = (typeof OPNAMES)[number];
+export type TokenTarget = { type: "construct"; kind: "sqrt" } | { type: "opname"; data: OpName } | { type: "character"; value: string };
+export const TOKEN_TARGETS = {
+  sqrt: { type: "construct", kind: "sqrt" },
+  sin: { type: "opname", data: "sin" }, cos: { type: "opname", data: "cos" }, tan: { type: "opname", data: "tan" },
+  log: { type: "opname", data: "log" }, ln: { type: "opname", data: "ln" }, lim: { type: "opname", data: "lim" },
+  pi: { type: "character", value: "π" }, theta: { type: "character", value: "θ" }, alpha: { type: "character", value: "α" },
+  beta: { type: "character", value: "β" }, gamma: { type: "character", value: "γ" }, delta: { type: "character", value: "δ" },
+  epsilon: { type: "character", value: "ε" }, lambda: { type: "character", value: "λ" }, mu: { type: "character", value: "μ" },
+  sigma: { type: "character", value: "σ" }, phi: { type: "character", value: "φ" }, omega: { type: "character", value: "ω" },
+} as const satisfies Record<string, TokenTarget>;
+export const matchToken = (letters: string): TokenTarget | undefined => TOKEN_TARGETS[letters as keyof typeof TOKEN_TARGETS];
 
 /**
  * How a construct is *drawn*, as a layout shape and the slots that fill it rather than as
@@ -94,29 +107,37 @@ export type Draw<K extends ConstructKind> =
   /** A drawn radical over what it covers, with an index in its crook when it has one. */
   | { primitive: "radical"; className: string; radicand: BranchOf<K>; index?: BranchOf<K> }
   /** Content between two stretchy delimiters. */
-  | { primitive: "fence"; className: string; content: BranchOf<K>; shape: FenceShape };
+  | { primitive: "fence"; className: string; content: BranchOf<K>; shape: FenceShape }
+  /** A zero-slot construct drawn as one upright mark. */
+  | { primitive: "atom"; className: string };
 
 /** The same, for a renderer holding a node whose kind is a runtime fact. */
 export type AnyDraw =
   | { primitive: "stack"; className: string; above: BranchKey; below: BranchKey }
   | { primitive: "attach"; className: string; base: BranchKey; script: BranchKey }
   | { primitive: "radical"; className: string; radicand: BranchKey; index?: BranchKey }
-  | { primitive: "fence"; className: string; content: BranchKey; shape: FenceShape };
+  | { primitive: "fence"; className: string; content: BranchKey; shape: FenceShape }
+  | { primitive: "atom"; className: string };
 
-export type ConstructSpec<K extends ConstructKind> = {
+type SharedSpec<K extends ConstructKind> = {
   kind: K;
   /** Visual, left-to-right order. This *is* the order caret navigation walks them in. */
   slots: readonly SlotSpec<K>[];
+  /** Tokens that may produce this construct. Empty until recognition is enabled. */
+  tokens?: readonly string[];
+  /** The LaTeX it is written as. There is no `read`; see the note above. */
+  write: (node: NodeOf<K>, latex: (nodes: FormulaNode[]) => string) => string;
+};
+
+type SlottedSpec<K extends ConstructKind> = SharedSpec<K> & {
   /** The layout shape it is drawn as, and which slot fills each part of it. */
-  draw: Draw<K>;
+  draw: Exclude<Draw<K>, { primitive: "atom" }>;
   /** Where a term written in front of the construct goes when the construct adopts one. */
   adopted: BranchOf<K>;
   /** Slot pairs from top to bottom, which is what ↑ and ↓ will move between (M4). */
   vertical?: readonly (readonly [BranchOf<K>, BranchOf<K>])[];
   /** How many lines of writing this stands, given the heights of its slots. Never measured. */
   lines: (node: NodeOf<K>, linesIn: (nodes: FormulaNode[]) => number) => number;
-  /** The LaTeX it is written as. There is no `read`; see the note above. */
-  write: (node: NodeOf<K>, latex: (nodes: FormulaNode[]) => string) => string;
   /** A character that steps the caret out of it from inside, rather than being written. */
   closedBy?: string;
   /**
@@ -127,6 +148,15 @@ export type ConstructSpec<K extends ConstructKind> = {
    */
   relationContainer?: true;
 };
+
+type AtomSpec<K extends ConstructKind> = SharedSpec<K> & {
+  slots: readonly [];
+  draw: { primitive: "atom"; className: string };
+  lines: (node: NodeOf<K>, linesIn: (nodes: FormulaNode[]) => number) => number;
+};
+
+type SlotsOf<K extends ConstructKind> = BranchOf<K>;
+export type ConstructSpec<K extends ConstructKind> = SlotsOf<K> extends never ? AtomSpec<K> : SlottedSpec<K>;
 
 /**
  * The same row seen by code that does not know which kind it has.
@@ -142,7 +172,7 @@ export type AnySpec = {
   kind: ConstructKind;
   slots: readonly { key: BranchKey; code: string; optional?: true; script?: true }[];
   draw: AnyDraw;
-  adopted: BranchKey;
+  adopted?: BranchKey;
   vertical?: readonly (readonly [BranchKey, BranchKey])[];
   lines: (node: CompoundNode, linesIn: (nodes: FormulaNode[]) => number) => number;
   write: (node: CompoundNode, latex: (nodes: FormulaNode[]) => string) => string;
@@ -198,10 +228,25 @@ export const CONSTRUCTS = {
     draw: { primitive: "fence", className: "math-input__group", content: "content", shape: "paren" },
     adopted: "content",
     lines: (node, linesIn) => linesIn(node.content),
-    write: (node, latex) => `\\left(${latex(node.content)}\\right)`,
+    write: (node, latex) => {
+      const fence = fenceOf(node);
+      const delimiters: Record<FenceShape, [string, string]> = {
+        paren: ["(", ")"], bracket: ["[", "]"], brace: ["\\{", "\\}"], bar: ["|", "|"],
+      };
+      const [left, right] = delimiters[fence];
+      return `\\left${left}${latex(node.content)}\\right${right}`;
+    },
     // `)` typed inside brackets leaves them rather than adding a stray one.
     closedBy: ")",
     relationContainer: true,
+  }),
+  opname: construct({
+    kind: "opname",
+    slots: [],
+    draw: { primitive: "atom", className: "math-input__opname" },
+    tokens: OPNAMES,
+    lines: () => 1,
+    write: (node) => `\\${node.data} `,
   }),
 } satisfies { [K in ConstructKind]: ConstructSpec<K> };
 
@@ -215,6 +260,8 @@ export const CONSTRUCTS = {
  */
 export const specOf = (kind: ConstructKind): AnySpec => CONSTRUCTS[kind] as unknown as AnySpec;
 export const specFor = (node: CompoundNode): AnySpec => specOf(node.type);
+/** Groups written before datum support were parentheses; retain that meaning on read. */
+export const fenceOf = (node: Extract<CompoundNode, { type: "group" }>): FenceShape => node.data ?? "paren";
 
 /** One slot's row, which carries both what the stylesheet calls it and whether it is set smaller. */
 export const slotOf = (kind: ConstructKind, branch: BranchKey) => specOf(kind).slots.find((slot) => slot.key === branch);
@@ -243,6 +290,8 @@ export type Insertion<K extends ConstructKind> = {
   adopts: boolean;
   caret: BranchOf<K>;
   caretWithoutTerm?: BranchOf<K>;
+  /** Datum for the newly built construct, where its row supports one. */
+  data?: FenceShape;
 };
 
 /** The loose reading of it, for the reducer, which handles whichever trigger fired. */
@@ -252,6 +301,7 @@ export type AnyInsertion = {
   adopts: boolean;
   caret: BranchKey;
   caretWithoutTerm?: BranchKey;
+  data?: FenceShape;
 };
 
 const insertion = <K extends ConstructKind>(spec: Insertion<K>): Insertion<K> => spec;
