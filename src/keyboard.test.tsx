@@ -102,6 +102,13 @@ it("writes spaces as ordinary text", () => {
   expect(latex()).toBe("A short sentence");
 });
 
+it("keeps every space typed inside a formula slot", () => {
+  const { type, latex, run } = editor();
+  type("1/2  ");
+  expect(latex()).toBe("\\frac{1}{2  }");
+  expect(run("1.denominator/0").textContent).toBe("2  ");
+});
+
 it("recognises typed tokens and restores their literal spelling with Backspace", () => {
   const { type, erase, latex } = editor();
   type("sqrt");
