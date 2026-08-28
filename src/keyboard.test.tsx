@@ -28,12 +28,16 @@ function editor(defaultValue = "") {
 
   return {
     field,
+    fields: () => [...host.querySelectorAll<HTMLElement>(".math-input__field")],
     latex: () => latex,
     type: (text: string) => act(() => {
       for (const character of text) field.dispatchEvent(new InputEvent("beforeinput", { inputType: "insertText", data: character, bubbles: true, cancelable: true }));
     }),
     erase: () => act(() => { field.dispatchEvent(new InputEvent("beforeinput", { inputType: "deleteContentBackward", bubbles: true, cancelable: true })); }),
     press: (key: string, shiftKey = false) => act(() => { field.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true })); }),
+    eraseAt: (index: number) => act(() => { host.querySelectorAll<HTMLElement>(".math-input__field")[index]!.dispatchEvent(new InputEvent("beforeinput", { inputType: "deleteContentBackward", bubbles: true, cancelable: true })); }),
+    pressAt: (index: number, key: string, shiftKey = false) => act(() => { host.querySelectorAll<HTMLElement>(".math-input__field")[index]!.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true })); }),
+    focusAt: (index: number) => act(() => { host.querySelectorAll<HTMLElement>(".math-input__field")[index]!.dispatchEvent(new FocusEvent("focusin", { bubbles: true })); }),
     run: (path: string) => field.querySelector<HTMLElement>(`.math-input__text[data-path="${path}"]`)!,
   };
 }
@@ -129,6 +133,21 @@ it("splits a row at a row-level caret", () => {
   press("ArrowLeft");
   press("Enter");
   expect(latex()).toBe("a\nb");
+});
+
+it("keeps a formula whole when Enter is pressed inside one of its slots", () => {
+  const { type, press, latex } = editor();
+  type("1/2");
+  press("Enter");
+  expect(latex()).toBe("\\frac{1}{2}\n");
+});
+
+it("merges adjacent rows at the first row boundary", () => {
+  const { eraseAt, focusAt, latex, pressAt } = editor("a\nb");
+  focusAt(1);
+  pressAt(1, "Home");
+  eraseAt(1);
+  expect(latex()).toBe("ab");
 });
 
 /**

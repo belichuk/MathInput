@@ -579,27 +579,37 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     if (document.activeElement !== fields.current.get(id)) pendingFocus.current = id;
   }, []);
 
-  const createRow = useCallback(() => {
+  const splitRow = useCallback(() => {
     const current = live.current;
     const active = current.caret;
     const index = active ? current.rows.findIndex((candidate) => candidate.id === active.rowId) : -1;
     const source = index >= 0 ? current.rows[index] : null;
     const position = active?.range.focus;
-    // Structural slots are intentionally not split: leave them explicitly with → or Tab first.
-    if (source && position && position.path.length === 1) {
-      const run = textAt(source.content, position.path);
-      const nodeIndex = position.path[0].index;
-      if (run) {
-        const left = normalize([...source.content.slice(0, nodeIndex), text(run.value.slice(0, position.offset))]);
-        const right = normalize([text(run.value.slice(position.offset)), ...source.content.slice(nodeIndex + 1)]);
-        const row: Row = { id: crypto.randomUUID(), content: right };
-        history.current = record(history.current, current);
-        pendingFocus.current = row.id;
-        commit({ rows: [...current.rows.slice(0, index), { ...source, content: left }, row, ...current.rows.slice(index + 1)], caret: { rowId: row.id, range: collapsedAt(rowStart()) } });
-        return;
-      }
-    }
-    if (source && position && position.path.length > 1) return;
+    if (!source || !position) return;
+    const nodeIndex = position.path[0]?.index;
+    if (nodeIndex === undefined) return;
+    // A row is the unit Enter splits. From inside a nested slot, first step past the
+    // enclosing top-level formula, then make the next row. This keeps the formula whole
+    // instead of trying to create a row boundary through one of its slots.
+    const [left, right] = position.path.length === 1
+      ? (() => {
+        const run = textAt(source.content, position.path);
+        if (!run) return [null, null] as const;
+        return [
+          normalize([...source.content.slice(0, nodeIndex), text(run.value.slice(0, position.offset))]),
+          normalize([text(run.value.slice(position.offset)), ...source.content.slice(nodeIndex + 1)]),
+        ] as const;
+      })()
+      : [normalize(source.content.slice(0, nodeIndex + 1)), normalize(source.content.slice(nodeIndex + 1))] as const;
+    if (!left || !right) return;
+    const row: Row = { id: crypto.randomUUID(), content: right };
+    history.current = record(history.current, current);
+    pendingFocus.current = row.id;
+    commit({ rows: [...current.rows.slice(0, index), { ...source, content: left }, row, ...current.rows.slice(index + 1)], caret: { rowId: row.id, range: collapsedAt(rowStart()) } });
+  }, [commit]);
+
+  const createRow = useCallback(() => {
+    const current = live.current;
     const row: Row = { id: crypto.randomUUID(), content: parseLatex("") };
     history.current = record(history.current, current);
     pendingFocus.current = row.id;
@@ -794,7 +804,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
       // is only stopped, not answered here.
       if (key.key === "Enter") {
         take(!key.shiftKey);
-        if (!key.shiftKey) createRow();
+        if (!key.shiftKey) splitRow();
         return;
       }
       if (key.key.length === 1 || key.key === "Backspace" || key.key === "Delete") take(false);
@@ -836,7 +846,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
         if (atEnd && mergeRow(rowId, "forward")) return;
         return dispatch(rowId, { type: "delete", direction: "forward" }, `delete:${rowId}`);
       }
-      if (input.inputType === "insertParagraph" || input.inputType === "insertLineBreak") return createRow();
+      if (input.inputType === "insertParagraph" || input.inputType === "insertLineBreak") return splitRow();
       if (!input.inputType.startsWith("insert")) return;
       const keyed = data.length === 1 ? KEYED_ACTION[data] : undefined;
       dispatch(rowId, keyed ?? { type: "insertText", text: data }, keyed ? "" : `type:${rowId}`);
@@ -851,7 +861,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
       container.removeEventListener("keyup", onKeyUp);
       container.removeEventListener("beforeinput", onBeforeInput);
     };
-  }, [disabled, dispatch, createRow, mergeRow, recognise, restore]);
+  }, [disabled, dispatch, mergeRow, recognise, restore, splitRow]);
 
   /** Undoes whatever reached the DOM without going through a reducer. */
   const repair = useCallback((rowId: string, field: HTMLDivElement) => {

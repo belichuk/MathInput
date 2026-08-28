@@ -6,7 +6,7 @@
 
 A React field for writing mathematics the way it is written on paper — one formula per line, fractions stacked, roots drawn over what they cover — that hands your app KaTeX-compatible LaTeX as the value. No runtime dependencies beyond React: no Tailwind, no MathJax, no editor framework. It does not evaluate or check what is written; it is an input, not a calculator.
 
-![Typing ½ · x² + √16 = 12: the fraction stacks as it is typed, a multiplication sign appears where one was needed, the power raises, and the root draws itself over what it covers](https://raw.githubusercontent.com/belichuk/MathInput/main/docs/images/typing.gif)
+![Typing ½ x² + √16 = 12: the fraction stacks as it is typed, the power raises, and the root draws itself over what it covers](https://raw.githubusercontent.com/belichuk/MathInput/main/docs/images/typing.gif)
 
 Every key in that recording is an ordinary one: `/` opened the fraction, `^` the power, `√` the root, and arrow keys leave their slots. What `onChange` handed back is `\frac{1}{2}x^{2}+\sqrt{16}=12` — ready to store, mark, or render with KaTeX.
 
@@ -97,7 +97,7 @@ A controlled `value` you did not just receive from `onChange` replaces the conte
 
 ### More than one row
 
-`Enter`, or the row button on the right, adds a row; a row can be removed once there is more than one. Rows are how a worked solution is written, and they come back as lines:
+`Enter` splits the current row; from inside a formula, that formula stays whole on the upper row. The toolbar’s row button appends a new row, and `Backspace` at a row start or `Delete` at a row end merges adjacent rows. Rows come back as lines:
 
 ```tsx
 <MathInput defaultValue={"2x+3=11\n2x=8\nx=4"} onChange={setSteps} />
@@ -142,16 +142,19 @@ The toolbar comes in three groups, divided: the formulas that have to be built �
 | `_` | The same for a subscript, so `x_i^2` nests as a power over a subscript |
 | `(` | Opens a bracket pair that grows to fit whatever is put in it |
 | `)` | Steps back out of the brackets it is typed in |
+| `|` | Opens an absolute-value fence, or closes the innermost one |
 | `*` | Written as `⋅` and emitted as `\cdot` |
 | text typed beside a formula | Is kept exactly as entered; type `*`, `×`, or `·` when multiplication is intended |
+| `sqrt`, `sin`, `pi`, … | Recognised as a root, named operator, or Greek character; immediate `Backspace` restores the typed word |
+| `<=` `>=` `!=` | Written as `≤` `≥` `≠` |
 | `√` `∛` | Open a square root and a cube root around what follows, the way `(` opens brackets. Not on most physical keyboards, but on every soft one's symbol page — and they survive dictation, autocorrect and paste |
 | `=` | Comes out of anything that cannot hold a relation — a numerator, a radicand, an exponent — and stops at the first thing that can, so `(x=1)` stays inside its brackets |
 | `Space` | Writes a space |
 | `←` `→` | Step through every slot in reading order, then out of the formula |
 | `↑` `↓` | Move between the slots a formula stacks — numerator and denominator, exponent and base — and between rows when nothing around the caret stacks anything |
 | `Home` `End` | Start and end of the row |
-| `Enter` | Adds a row |
-| `Backspace` `Delete` | One thing per press: a character, or the formula beside the caret as a whole |
+| `Enter` | Splits a row; a formula containing the caret remains whole on the upper row |
+| `Backspace` `Delete` | One thing per press; at row boundaries, merges the neighbouring row |
 | `Ctrl`/`Cmd`+`Z`, `Shift`+`Ctrl`/`Cmd`+`Z` | Undo and redo, a run of typing at a time |
 | `Esc` | Leaves the field |
 | `Tab`, `Shift`+`Tab` | Walk the slots of the formula, in the order they are drawn. With no slot left in that direction the field is left, the way `Tab` leaves anything else |
@@ -245,13 +248,13 @@ Each row is serialized as a line of LaTeX and joined with `\n`. What comes out p
 | brackets | `\left(9+16\right)` |
 | two times three | `2\cdot 3` |
 
-Input is read more loosely than it is written: `\times` and `×` both arrive as `⋅`, `\sqrt[n]{…}` of any index is kept and remains editable, and malformed input is tolerated rather than rejected — a command with no group falls back to its own text, and an unclosed group is treated as closed.
+Input is read more loosely than it is written: `\times` and `×` both arrive as `⋅`; named operators, Greek letters, relations, absolute-value fences, and `\sqrt[n]{…}` remain editable; and malformed input is tolerated rather than rejected — a command with no group falls back to its own text, and an unclosed group is treated as closed.
 
 ## Recipes
 
 ### In a form
 
-`Enter` adds a row and never submits the form around it, so a submit button is the way out:
+`Enter` splits a row and never submits the form around it, so a submit button is the way out:
 
 ```tsx
 export function AnswerForm({ onSubmit }: { onSubmit: (value: string) => void }) {
@@ -329,7 +332,7 @@ What a browser downloads, for the component as it stands:
 | `math-input.js` (ESM) | 42.9 kB | **14.5 kB** |
 | `math-input.css` | 8.8 kB | **2.3 kB** |
 
-About 16.8 kB gzipped in total, with React the only thing it expects to already be there. It grew by 1.6 kB in 0.5.0, and where it went is worth knowing: rendering a row only when that row changed, and setting mathematics properly — spacing operations, italicising letters, sizing radicals to what they cover. For comparison, KaTeX alone is an order of magnitude larger, and this is a whole editor.
+About 16.3 kB gzipped in total, with React the only thing it expects to already be there. It grew to add editable named operators, absolute values, Greek letters, relations, row editing, and token recognition. For comparison, KaTeX alone is an order of magnitude larger, and this is a whole editor.
 
 There is nothing to tree-shake off: one entry, one component, and every module behind it is on the path from typing a key to seeing a formula. `sideEffects` is declared, so a bundler is free to drop the stylesheet if you never import it.
 
@@ -374,7 +377,7 @@ A keystroke aimed at a formula belongs to the editor alone. This is the whole of
 | `←` `→` `Home` `End` | Movement within the row |
 | `↑` `↓` | Only while there is a slot or a row to move to; otherwise left alone |
 | `Tab` `Shift`+`Tab` | Only while there is a slot left to walk to; otherwise left alone, and focus leaves |
-| `Enter` | Adds a row, so a form is never submitted from inside a formula |
+| `Enter` | Splits a row, leaving a formula containing the caret whole on the upper row, so a form is never submitted from inside a formula |
 | `Escape` | Leaves the field |
 | `Ctrl`/`Cmd`+`Z`, `Shift`+`Ctrl`/`Cmd`+`Z`, `Ctrl`/`Cmd`+`Y` | Undo and redo |
 | Anything an IME is composing | |
@@ -404,7 +407,7 @@ Every box in that formula is a slot the caret can be put in — by clicking it, 
 - Clicking inside any slot places the caret in that part of the formula.
 - Clicking past a formula's edge, or pressing `End`, continues after it.
 - Typing `=` comes out of whatever cannot hold a relation and stops at the first thing that can. A numerator, a radicand and an exponent cannot, so `10^=2` cannot be typed at all and `=` pressed deep inside `\frac{1}{\frac{1}{2}}` lands after the outer fraction. Brackets *can*, because `\left(x=1\right)` is a sentence: `=` typed inside them stays where it was typed. Which constructs can hold one is declared per construct rather than decided key by key.
-- `Backspace` removes the formula immediately behind the caret as one object, whatever it contains. Inside a slot it deletes normally; at the start of a slot it steps out — into the previous slot, or to just before the formula — leaving the content alone. Only when every slot of a formula is empty does the next `Backspace` remove that formula. `Delete` mirrors all of this forwards. Never more than one thing goes per keypress.
+- `Backspace` removes the formula immediately behind the caret as one object, whatever it contains. Inside a slot it deletes normally; at the start of a slot it steps out — into the previous slot, or to just before the formula — leaving the content alone. At a row boundary, `Backspace` and `Delete` merge the previous or next row respectively.
 - **Text beside a formula stays exactly as written.** The field is not limited to mathematical expressions, so it never infers multiplication or inserts a character the user did not type. Type `*`, `×`, or `·` for multiplication.
 - A sign typed after a sign replaces it, rather than being written beside it: `1+` then `−` is `1−`. Nobody means `1+−`, and the second press is the correction, so it is treated as one — which is the difference between a student fixing a slip with one key and fixing it with a backspace they have to think about. It applies to `+`, `−`, `:` and `⋅`, whether they come from keys or from the toolbar, and to nothing else: a sign following a digit, a bracket or a whole formula is written as written.
 - A selection spanning two slots deletes the covered part of each and keeps the formula: half a fraction is not a thing.
@@ -412,7 +415,7 @@ Every box in that formula is a slot the caret can be put in — by clicking it, 
 
 ## How it works
 
-The editor is structure-first: each row is a typed tree (text runs, roots, fractions, powers, subscripts, brackets) held in React state, and the contentEditable DOM is a rendering of that tree rather than the source of truth. Keystrokes are intercepted and run through pure reducers that edit the tree, React re-renders, and the caret — a plain `{path, offset}` value — is written back into a DOM range afterwards.
+The editor is structure-first: each row is a typed tree (text runs, roots, fractions, powers, subscripts, fences, and named operators) held in React state, and the contentEditable DOM is a rendering of that tree rather than the source of truth. Keystrokes are intercepted and run through pure reducers that edit the tree, React re-renders, and the caret — a plain `{path, offset}` value — is written back into a DOM range afterwards. `data-path` attributes are internal rendering details and may change without notice.
 
 Two properties fall out of this. Caret questions like "is this the end of the slot?" are array index comparisons rather than DOM boundary-point comparisons, which is a class of bug the editor can no longer have. And every editing operation is a pure function, so the behaviour above is covered by unit tests rather than only by clicking around.
 

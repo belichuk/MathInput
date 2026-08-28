@@ -99,7 +99,7 @@ listening to one should be possible at all.
 
 ### Known limitations
 
-- **A row cannot be split or merged.** `Enter` adds a row after the one you are in rather than splitting it at the caret, and `Backspace` at the start of a row does not join it to the row above. This is unchanged from earlier versions and is not a regression of the new ↑ and ↓ — it is the next piece of work on rows, and it is 0.6.0's. One consequence to know when using the new `toolbar={false}`: the remove-row control lives in the toolbar, so with no toolbar and no merge there is no way to remove a row. Pair `toolbar={false}` with a single-row field until that changes.
+- **At the time, a row could not be split or merged.** `Enter` added a row after the one you were in rather than splitting it at the caret, and `Backspace` at the start of a row did not join it to the row above. That limitation was removed in 0.6.0.
 - **Typing `sqrt` does not become √.** Token recognition moves to 0.6.0, where it lands together with the named functions, absolute value, the Greek letters and the relations — one mechanism, shipped once.
 
 ### A note on the versions before this one
@@ -166,7 +166,7 @@ Documentation and repository layout. The published `dist/` is byte-for-byte what
 ### Changed
 
 - The README is written for someone using the component rather than someone working on it. It opens with what the field is and a picture of it, and documents every option where you would look for it: props with their types and defaults, controlled and uncontrolled use, rows as the shape of a worked solution, pinning the tools, and read-only.
-- Recipes for what comes after the first render: a form — `Enter` adds a row and never submits, so the button matters — loading and clearing, showing an answer without letting it be edited, and a page of fields.
+- Recipes for what comes after the first render: a form — `Enter` changes the row and never submits, so the button matters — loading and clearing, showing an answer without letting it be edited, and a page of fields.
 - Everything that can be typed is a key-by-key table, every CSS custom property is listed with its default, and the emitted value is shown construct by construct.
 - Size, measured rather than claimed: 11.9 kB of JavaScript and 2.0 kB of CSS, gzipped, with React external. There is nothing to tree-shake off a single-entry component, the build is already minified — forcing `minify: "esbuild"` over the default makes it 3% larger — and the tarball is bigger than any of it only because of the CommonJS build, the maps and the types, none of which reach a user.
 - What each framework needs: `"use client"` under Next, nothing for the usual bundlers, and for Jest a CSS stub only if your own code imports the stylesheet.

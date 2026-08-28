@@ -54,10 +54,6 @@ const KB = 1000;
  * The allowance below is for 0.6.0, whose known work is token recognition, the opnames, `abs`,
  * the Greek letters and the relations of M5, and row split and merge.
  */
-// 0.6.0 starts from the measured 14,546 B ESM baseline and reserves the top of its
-// documented 1.7–2.0 KB range for datum constructs, token recognition and row editing.
-const ALLOWANCE = 2 * KB;
-
 const TARGETS = [
   { file: "dist/math-input.js", label: "ESM bundle", budget: 16_546, baseline: 12_951 },
   // Reported, never gated: no browser loads the CommonJS build, and it exists for
@@ -138,7 +134,7 @@ if (!bundle.missing) {
 for (const problem of problems) console.error(`error: ${problem}`);
 
 const pending = results.filter((row) => row.missing && row.pending);
-for (const row of pending) console.log(`note: ${row.file} is not built yet, so ${row.budget === null ? "no budget" : `its ${kb(row.budget)} budget`} gates nothing.`);
+for (const row of pending) console.log(`note: ${row.file} is not built yet, so it does not gate the build.`);
 
 const absent = results.filter((row) => row.missing && !row.pending);
 for (const row of absent) console.error(`error: ${row.file} is missing from a completed build.`);

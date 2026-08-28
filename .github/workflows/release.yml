@@ -37,12 +37,24 @@ jobs:
             exit 1
           fi
 
+      - name: Type-check
+        run: npm run typecheck
+
       - name: Test
         run: npm test
 
       # The package only. The demo is for looking at and developing against, not shipping.
       - name: Build the package
         run: npm run build
+
+      - name: Bundle size
+        run: npm run size
+
+      - name: Build the demo
+        run: npm run build:demo
+
+      - name: Check layout budget
+        run: npm run bench
 
       - name: Take the notes out of the changelog
         run: |
