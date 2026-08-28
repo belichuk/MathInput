@@ -1,5 +1,11 @@
 # Migrating to 0.5.0
 
+## 0.6.0
+
+0.6.0 has no breaking API changes. The deprecated 0.5.0 toolbar names remain available through
+the 0.6.x line. Space now writes ordinary text; use `→` or `Tab` to leave a formula slot before
+splitting its row with Enter.
+
 Two things were renamed. Both old names still work in 0.5.0 and 0.6.x, and both go in 0.7.0 — so nothing here has to be done on upgrade day. Upgrade, then migrate when it suits.
 
 Everything else in 0.5.0 is additive or a change in behaviour rather than in API; the behaviour changes are listed in [CHANGELOG.md](CHANGELOG.md), and one of them will reach your stored values, so read that too.

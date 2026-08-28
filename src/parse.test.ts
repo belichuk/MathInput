@@ -46,6 +46,10 @@ describe("parseLatex", () => {
     expect(parseLatex("\\left(9+16\\right)")).toEqual([text(""), group([text("9+16")]), text("")]);
   });
 
+  it("reads Greek letters and relations as text characters", () => {
+    expect(parseLatex("\\pi\\theta\\le\\ne")).toEqual([text("πθ≤≠")]);
+  });
+
   it("gives a power the term in front of it as its base", () => {
     expect(parseLatex("10^{2}")).toEqual([text(""), power([text("10")], [text("2")]), text("")]);
     expect(parseLatex("x+10^{2}")).toEqual([text("x+"), power([text("10")], [text("2")]), text("")]);

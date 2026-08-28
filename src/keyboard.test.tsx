@@ -32,6 +32,7 @@ function editor(defaultValue = "") {
     type: (text: string) => act(() => {
       for (const character of text) field.dispatchEvent(new InputEvent("beforeinput", { inputType: "insertText", data: character, bubbles: true, cancelable: true }));
     }),
+    erase: () => act(() => { field.dispatchEvent(new InputEvent("beforeinput", { inputType: "deleteContentBackward", bubbles: true, cancelable: true })); }),
     press: (key: string, shiftKey = false) => act(() => { field.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true })); }),
     run: (path: string) => field.querySelector<HTMLElement>(`.math-input__text[data-path="${path}"]`)!,
   };
@@ -99,6 +100,30 @@ it("writes spaces as ordinary text", () => {
   const { type, latex } = editor();
   type("A short sentence");
   expect(latex()).toBe("A short sentence");
+});
+
+it("recognises typed tokens and restores their literal spelling with Backspace", () => {
+  const { type, erase, latex } = editor();
+  type("sqrt");
+  expect(latex()).toBe("\\sqrt{}");
+  erase();
+  expect(latex()).toBe("sqrt");
+  erase();
+  expect(latex()).toBe("");
+});
+
+it("does not recognise a token at the end of a longer letter run", () => {
+  const { type, latex } = editor();
+  type("arcsin");
+  expect(latex()).toBe("arcsin");
+});
+
+it("splits a row at a row-level caret", () => {
+  const { type, press, latex } = editor();
+  type("ab");
+  press("ArrowLeft");
+  press("Enter");
+  expect(latex()).toBe("a\nb");
 });
 
 /**

@@ -80,7 +80,7 @@ One prop describes the whole strip. Every key is optional and every default is o
 <MathInput toolbar={false} />                             // no tools at all
 ```
 
-`toolbar={false}` removes the strip and its tab stop. It also removes the two row controls, which live in it: `Enter` still adds a row, but nothing removes one, since `Backspace` does not yet merge a row into the row above. That is a limitation of this release rather than a property of the prop; until it is lifted, pair `toolbar={false}` with a single-row field.
+`toolbar={false}` removes the strip and its tab stop. Rows can still be split with `Enter` and merged with `Backspace` or `Delete`, so the field remains fully editable without the row controls.
 
 > **Renamed in 0.5.0.** `autoHideToolbar`, `showOperators` and `showNavigation` still work and still do exactly what they did; each warns once, in development, naming what to write instead. They go in 0.7.0. [MIGRATING-0.5.0.md](MIGRATING-0.5.0.md) has the codemod.
 

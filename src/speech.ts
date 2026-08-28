@@ -1,5 +1,5 @@
 import { type FormulaNode, type Path, branchesOf, isText, resolve } from "./model";
-import { type ConstructKind, specFor } from "./registry";
+import { type ConstructKind, fenceOf, specFor } from "./registry";
 import { tokeniseRun } from "./render";
 
 /**
@@ -59,6 +59,8 @@ const SPOKEN_CHARACTERS: Record<string, string> = {
   ">": "is greater than",
   "≤": "is less than or equal to",
   "≥": "is greater than or equal to",
+  "π": "pi", "θ": "theta", "α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta",
+  "ε": "epsilon", "λ": "lambda", "μ": "mu", "σ": "sigma", "φ": "phi", "ω": "omega",
 };
 
 const SPOKEN = {
@@ -70,7 +72,12 @@ const SPOKEN = {
   power: (said) => (said.exponent === "2" ? `${said.base} squared` : said.exponent === "3" ? `${said.base} cubed` : `${said.base} to the power of ${said.exponent}, end power`),
   subscript: (said) => `${said.base} sub ${said.subscript}`,
   group: (said) => `open bracket ${said.content} close bracket`,
+  opname: () => "", // selected by datum below
 } satisfies Record<ConstructKind, Reading>;
+
+const SPOKEN_OPNAMES: Record<import("./registry").OpName, string> = {
+  sin: "sine", cos: "cosine", tan: "tangent", log: "log", ln: "natural log", lim: "limit",
+};
 
 /**
  * A run of characters, read by what each character *is* rather than by what it looks like.
@@ -99,8 +106,10 @@ function speakRun(value: string, afterTerm: boolean): string {
 /** One node, and then its neighbours: a run reads on from whatever stood in front of it. */
 function speakNode(node: FormulaNode, afterTerm: boolean): string {
   if (isText(node)) return speakRun(node.value, afterTerm);
+  if (node.type === "opname") return SPOKEN_OPNAMES[node.data];
   const said: Said = {};
   for (const branch of branchesOf(node)) said[branch.key] = speakNodes(branch.nodes);
+  if (node.type === "group" && fenceOf(node) === "bar") return `the absolute value of ${said.content}, end absolute value`;
   return (SPOKEN as Record<string, Reading>)[node.type](said);
 }
 

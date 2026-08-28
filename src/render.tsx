@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode } from "react";
 import { type BranchKey, type CompoundNode, type FormulaNode, type Path, branchOf, branchesOf, encodePath, isBlank, slotPath, stepOf } from "./model";
-import { type AnyDraw, type FenceShape, slotOf, specFor } from "./registry";
+import { type AnyDraw, type FenceShape, fenceOf, slotOf, specFor } from "./registry";
 
 /**
  * Renders a formula tree as real JSX. Every element carries a `data-path` holding the
@@ -46,7 +46,7 @@ const classOf = (character: string, operates: boolean): RunToken["kind"] => {
   if (RELATIONS.includes(character)) return "relation";
   if (OPERATORS.includes(character)) return operates ? "operator" : "plain";
   if (DIGITS.includes(character)) return "number";
-  return /[A-Za-z]/.test(character) ? "variable" : "plain";
+  return /[A-Za-zαβγδελμσφωπθ]/.test(character) ? "variable" : "plain";
 };
 
 export function tokeniseRun(value: string, afterTerm: boolean): RunToken[] {
@@ -247,7 +247,9 @@ function draw(node: CompoundNode, shape: AnyDraw, slot: (branch: BranchKey) => R
     case "attach":
       return { className: shape.className, children: <>{slot(shape.base)}{slot(shape.script)}</> };
     case "fence":
-      return { className: shape.className, children: <><Fence shape={shape.shape} side="left" />{slot(shape.content)}<Fence shape={shape.shape} side="right" /></> };
+      return { className: shape.className, children: <><Fence shape={node.type === "group" ? fenceOf(node) : shape.shape} side="left" />{slot(shape.content)}<Fence shape={node.type === "group" ? fenceOf(node) : shape.shape} side="right" /></> };
+    case "atom":
+      return { className: shape.className, children: node.type === "opname" ? node.data : "" };
     case "radical": {
       // A cube root is the same drawing with its index beside it, which is why the index is
       // the root's own child rather than the body's: it sits outside the radical.

@@ -97,6 +97,11 @@ describe("insertText", () => {
 });
 
 describe("one sign typed after another", () => {
+  it("combines relation digraphs rather than replacing the first character", () => {
+    expect(sketch(apply(rowOf(""), type("<"), type("=")))).toBe("\\le|");
+    expect(sketch(apply(rowOf(""), type(">"), type("=")))).toBe("\\ge|");
+    expect(sketch(apply(rowOf(""), type("!"), type("=")))).toBe("\\ne|");
+  });
   it("writes the new sign over the old one", () => {
     expect(sketch(apply(rowOf("1+", top(0, 2)), type("-")))).toBe("1-|");
     expect(sketch(apply(rowOf("1-", top(0, 2)), type("*")))).toBe("1\\cdot |");
@@ -126,6 +131,13 @@ describe("one sign typed after another", () => {
 
   it("works in the middle of a run, where the caret is", () => {
     expect(sketch(apply(rowOf("1+2", top(0, 2)), type(":")))).toBe("1:|2");
+  });
+});
+
+describe("absolute-value fences", () => {
+  it("opens with a bar and closes the innermost bar", () => {
+    expect(sketch(apply(rowOf(""), { type: "closeGroup", character: "|" }, type("x"), { type: "closeGroup", character: "|" })))
+      .toBe("\\left|x\\right||");
   });
 });
 

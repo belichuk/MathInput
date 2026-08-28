@@ -232,6 +232,11 @@
   font-style: italic;
 }
 
+/* Named operators are words in mathematics, not variables multiplied together. */
+.math-input__opname {
+  font-style: normal;
+}
+
 .math-input__token--number {
   font-variant-numeric: tabular-nums;
 }

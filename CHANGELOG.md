@@ -2,6 +2,14 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
+## 0.6.0 — 2026-08-28
+
+- Named functions (`sin`, `cos`, `tan`, `log`, `ln`, `lim`) are atoms: they render upright, are read aloud by name, and round-trip as KaTeX commands.
+- Type `sqrt`, function names, or Greek names such as `pi` to recognise them. Recognition is one undoable edit; Backspace immediately restores the literal text.
+- Absolute-value fences, Greek letters, and `≤`, `≥`, `≠` are supported. Type `<=`, `>=`, or `!=` for the relations.
+- Enter splits a row at a row-level caret; Backspace at the start of a row and Delete at its end merge neighbouring rows. Space remains ordinary text.
+- No public API was removed. The 0.5.0 deprecated toolbar prop names remain supported through 0.6.x.
+
 ## 0.5.0 — 2026-08-17
 
 The release where a construct stopped being knowledge spread across seven files and became a

@@ -27,6 +27,10 @@ describe("serializeToLatex", () => {
     expect(serializeToLatex([text("2⋅"), subscript([text("x")], [text("i")]), text("")])).toBe("2\\cdot x_{i}");
   });
 
+  it("writes Greek letters and relations as their KaTeX commands", () => {
+    expect(serializeToLatex([text("πθ≤≠")])).toBe("\\pi\\theta\\le\\ne");
+  });
+
   it("keeps empty slots as empty groups", () => {
     expect(serializeToLatex([text(""), frac(), text("")])).toBe("\\frac{}{}");
     expect(serializeToLatex([text(""), group(), text("")])).toBe("\\left(\\right)");
