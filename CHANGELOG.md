@@ -2,7 +2,7 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
-## Unreleased
+## 0.6.1 — 2026-10-19
 
 ### Changed
 
