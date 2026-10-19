@@ -56,6 +56,7 @@ Everything is optional; `<MathInput />` on its own is a working uncontrolled fie
 | `onChange` | `(value: string) => void` | — | Called with the LaTeX after every edit. |
 | `placeholder` | `string` | `"Write a formula…"` | Shown in a row while it is empty. |
 | `disabled` | `boolean` | `false` | Nothing can be typed and the tools stop responding. The formula stays readable and selectable. |
+| `autoCapitalize` | `boolean` | `false` | Lets a soft keyboard capitalise what is typed. Off, the iPhone and iPad keyboard no longer starts each row with a capital. |
 | `toolbar` | `ToolbarOptions \| false` | `{}` | What the tools show, and when — see below. `false` for a field with none at all. |
 | `className` | `string` | `""` | Added to the wrapper element. |
 | `style` | `CSSProperties` | — | Wrapper style, and where the CSS variables below go. |

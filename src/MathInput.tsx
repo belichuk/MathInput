@@ -37,6 +37,11 @@ export type MathInputProps = {
   onChange?: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  /**
+   * Whether a soft keyboard may capitalise what is typed — the iPhone and iPad one starts every
+   * row with a capital otherwise. Off by default, because `X` and `x` are different variables.
+   */
+  autoCapitalize?: boolean;
   /** The toolbar, or `false` for a field with no tools at all — see {@link ToolbarOptions}. */
   toolbar?: ToolbarOptions | false;
   /** @deprecated Since 0.5.0; removed in 0.7.0. Use `toolbar={{ autoHide: … }}`. */
@@ -242,6 +247,7 @@ const KEYED_ACTION: Record<string, Action> = {
  */
 type RowShell = {
   disabled: boolean;
+  autoCapitalize: boolean;
   placeholder: string;
   ariaLabel: string;
   groups: typeof TOOL_GROUPS;
@@ -333,7 +339,7 @@ function Toolbar({ row, index, removable, shell }: { row: string; index: number;
 }
 
 const EditorRow = memo(function EditorRow({ row, index, removable, wearsTools, shell }: { row: Row; index: number; removable: boolean; wearsTools: boolean; shell: RowShell }) {
-  const { ariaLabel, disabled, placeholder } = shell;
+  const { ariaLabel, autoCapitalize, disabled, placeholder } = shell;
   // Kept stable per row: a fresh ref callback on every render makes React detach and
   // reattach the element, and the edited row renders on every keystroke.
   const fieldRef = useCallback((element: HTMLDivElement | null) => shell.registerField(row.id, element), [shell, row.id]);
@@ -351,6 +357,7 @@ const EditorRow = memo(function EditorRow({ row, index, removable, wearsTools, s
       tabIndex={0}
       suppressContentEditableWarning
       spellCheck={false}
+      autoCapitalize={autoCapitalize ? "sentences" : "none"}
       role="textbox"
       aria-multiline="false"
       aria-label={`${ariaLabel}, row ${index + 1}`}
@@ -401,7 +408,7 @@ const toRows = (latex: string): Row[] => latex.split("\n").map((line) => ({ id: 
 const sameRange = (first: SelectionRange, second: SelectionRange): boolean => samePosition(first.anchor, second.anchor) && samePosition(first.focus, second.focus);
 
 /** A dependency-free, visual formula editor that emits LaTeX-compatible text. */
-export function MathInput({ value, defaultValue = "", onChange, placeholder = "Write a formula…", disabled = false, toolbar, autoHideToolbar, showOperators, showNavigation, className = "", style, "aria-label": ariaLabel = "Math editor" }: MathInputProps) {
+export function MathInput({ value, defaultValue = "", onChange, placeholder = "Write a formula…", disabled = false, autoCapitalize = false, toolbar, autoHideToolbar, showOperators, showNavigation, className = "", style, "aria-label": ariaLabel = "Math editor" }: MathInputProps) {
   const [state, setState] = useState<EditorState>(() => ({ rows: toRows(value ?? defaultValue), caret: null }));
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
   /** The row the caret last sat in, which keeps the tools when they are not auto-hidden. */
@@ -985,6 +992,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
    */
   const shell: RowShell = useMemo(() => ({
     disabled,
+    autoCapitalize,
     placeholder,
     ariaLabel,
     groups: tools?.groups ?? [],
@@ -1006,7 +1014,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     paste: (rowId, text) => dispatch(rowId, { type: "paste", text }),
     pickPosition,
     dragScrollbar,
-  }), [disabled, placeholder, ariaLabel, tools, focusRow, dispatch, removeRow, createRow, focusField, paintRow, measureRow, repair, endComposition, pickPosition, dragScrollbar]);
+  }), [disabled, autoCapitalize, placeholder, ariaLabel, tools, focusRow, dispatch, removeRow, createRow, focusField, paintRow, measureRow, repair, endComposition, pickPosition, dragScrollbar]);
 
   return <div className={`math-input ${className}`.trim()} style={style}>
     <div className="math-input__frame" ref={frame} aria-labelledby={labelId}>

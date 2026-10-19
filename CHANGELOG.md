@@ -2,6 +2,12 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
+## Unreleased
+
+### Changed
+
+- Soft keyboards no longer capitalise what is typed: on iPhone and iPad a row used to start with a capital letter, which in a formula is a different variable. Pass `autoCapitalize` to get the old behaviour back.
+
 ## 0.6.0 — 2026-08-28
 
 ### Added
