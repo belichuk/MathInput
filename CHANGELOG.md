@@ -2,6 +2,12 @@
 
 What changed in each version of the component. Versions follow [semantic versioning](https://semver.org); below 1.0 the minor number is where breaking changes land.
 
+## Unreleased
+
+### Changed
+
+- Enter no longer splits a row at the caret. It leaves the current row whole, opens a new empty row directly below it, and moves the caret there — wherever the caret was in the row. The return key on a soft keyboard does the same.
+
 ## 0.6.1 — 2026-10-19
 
 ### Changed

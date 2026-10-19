@@ -37,6 +37,10 @@ function editor(defaultValue = "") {
     press: (key: string, shiftKey = false) => act(() => { field.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true })); }),
     eraseAt: (index: number) => act(() => { host.querySelectorAll<HTMLElement>(".math-input__field")[index]!.dispatchEvent(new InputEvent("beforeinput", { inputType: "deleteContentBackward", bubbles: true, cancelable: true })); }),
     pressAt: (index: number, key: string, shiftKey = false) => act(() => { host.querySelectorAll<HTMLElement>(".math-input__field")[index]!.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true })); }),
+    typeAt: (index: number, text: string) => act(() => {
+      const target = host.querySelectorAll<HTMLElement>(".math-input__field")[index]!;
+      for (const character of text) target.dispatchEvent(new InputEvent("beforeinput", { inputType: "insertText", data: character, bubbles: true, cancelable: true }));
+    }),
     focusAt: (index: number) => act(() => { host.querySelectorAll<HTMLElement>(".math-input__field")[index]!.dispatchEvent(new FocusEvent("focusin", { bubbles: true })); }),
     run: (path: string) => field.querySelector<HTMLElement>(`.math-input__text[data-path="${path}"]`)!,
   };
@@ -127,12 +131,32 @@ it("does not recognise a token at the end of a longer letter run", () => {
   expect(latex()).toBe("arcsin");
 });
 
-it("splits a row at a row-level caret", () => {
-  const { type, press, latex } = editor();
+it("leaves the row whole when Enter is pressed in the middle of it, and writes on in a new row", () => {
+  const { type, typeAt, press, latex } = editor();
   type("ab");
   press("ArrowLeft");
   press("Enter");
-  expect(latex()).toBe("a\nb");
+  expect(latex()).toBe("ab\n");
+  typeAt(1, "c");
+  expect(latex()).toBe("ab\nc");
+});
+
+it("opens the new row directly below the one Enter was pressed in, not at the end", () => {
+  const { pressAt, focusAt, typeAt, latex } = editor("a\nb");
+  focusAt(0);
+  pressAt(0, "Home");
+  pressAt(0, "Enter");
+  expect(latex()).toBe("a\n\nb");
+  typeAt(1, "c");
+  expect(latex()).toBe("a\nc\nb");
+});
+
+it("opens a new row the same way for a soft keyboard's return key", () => {
+  const { field, type, press, latex } = editor();
+  type("ab");
+  press("ArrowLeft");
+  act(() => { field.dispatchEvent(new InputEvent("beforeinput", { inputType: "insertParagraph", bubbles: true, cancelable: true })); });
+  expect(latex()).toBe("ab\n");
 });
 
 it("keeps a formula whole when Enter is pressed inside one of its slots", () => {

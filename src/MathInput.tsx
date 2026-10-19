@@ -1,6 +1,6 @@
 import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./MathInput.css";
-import { type FormulaNode, type SelectionRange, collapsedAt, encodePath, isBlank, normalize, samePosition, text, textAt } from "./model";
+import { type FormulaNode, type SelectionRange, collapsedAt, encodePath, isBlank, normalize, samePosition, textAt } from "./model";
 import { clampPosition, rowEnd, rowStart, stepThroughSlots, stepVertically } from "./caret";
 import { type Action, type CompoundKind, type RowState, reduce } from "./reducers";
 import { parseLatex } from "./parse";
@@ -586,33 +586,20 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
     if (document.activeElement !== fields.current.get(id)) pendingFocus.current = id;
   }, []);
 
-  const splitRow = useCallback(() => {
+  /**
+   * Enter leaves the row rather than cutting it: whatever the row holds stays together, and a
+   * new empty row opens directly below it with the caret at its start. Where the caret was in
+   * the row, a formula's slot included, makes no difference.
+   */
+  const openRowBelow = useCallback(() => {
     const current = live.current;
     const active = current.caret;
     const index = active ? current.rows.findIndex((candidate) => candidate.id === active.rowId) : -1;
-    const source = index >= 0 ? current.rows[index] : null;
-    const position = active?.range.focus;
-    if (!source || !position) return;
-    const nodeIndex = position.path[0]?.index;
-    if (nodeIndex === undefined) return;
-    // A row is the unit Enter splits. From inside a nested slot, first step past the
-    // enclosing top-level formula, then make the next row. This keeps the formula whole
-    // instead of trying to create a row boundary through one of its slots.
-    const [left, right] = position.path.length === 1
-      ? (() => {
-        const run = textAt(source.content, position.path);
-        if (!run) return [null, null] as const;
-        return [
-          normalize([...source.content.slice(0, nodeIndex), text(run.value.slice(0, position.offset))]),
-          normalize([text(run.value.slice(position.offset)), ...source.content.slice(nodeIndex + 1)]),
-        ] as const;
-      })()
-      : [normalize(source.content.slice(0, nodeIndex + 1)), normalize(source.content.slice(nodeIndex + 1))] as const;
-    if (!left || !right) return;
-    const row: Row = { id: crypto.randomUUID(), content: right };
+    if (index < 0) return;
+    const row: Row = { id: crypto.randomUUID(), content: parseLatex("") };
     history.current = record(history.current, current);
     pendingFocus.current = row.id;
-    commit({ rows: [...current.rows.slice(0, index), { ...source, content: left }, row, ...current.rows.slice(index + 1)], caret: { rowId: row.id, range: collapsedAt(rowStart()) } });
+    commit({ rows: [...current.rows.slice(0, index + 1), row, ...current.rows.slice(index + 1)], caret: { rowId: row.id, range: collapsedAt(rowStart()) } });
   }, [commit]);
 
   const createRow = useCallback(() => {
@@ -811,7 +798,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
       // is only stopped, not answered here.
       if (key.key === "Enter") {
         take(!key.shiftKey);
-        if (!key.shiftKey) splitRow();
+        if (!key.shiftKey) openRowBelow();
         return;
       }
       if (key.key.length === 1 || key.key === "Backspace" || key.key === "Delete") take(false);
@@ -853,7 +840,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
         if (atEnd && mergeRow(rowId, "forward")) return;
         return dispatch(rowId, { type: "delete", direction: "forward" }, `delete:${rowId}`);
       }
-      if (input.inputType === "insertParagraph" || input.inputType === "insertLineBreak") return splitRow();
+      if (input.inputType === "insertParagraph" || input.inputType === "insertLineBreak") return openRowBelow();
       if (!input.inputType.startsWith("insert")) return;
       const keyed = data.length === 1 ? KEYED_ACTION[data] : undefined;
       dispatch(rowId, keyed ?? { type: "insertText", text: data }, keyed ? "" : `type:${rowId}`);
@@ -868,7 +855,7 @@ export function MathInput({ value, defaultValue = "", onChange, placeholder = "W
       container.removeEventListener("keyup", onKeyUp);
       container.removeEventListener("beforeinput", onBeforeInput);
     };
-  }, [disabled, dispatch, mergeRow, recognise, restore, splitRow]);
+  }, [disabled, dispatch, mergeRow, recognise, restore, openRowBelow]);
 
   /** Undoes whatever reached the DOM without going through a reducer. */
   const repair = useCallback((rowId: string, field: HTMLDivElement) => {

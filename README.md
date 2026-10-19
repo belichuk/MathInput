@@ -81,7 +81,7 @@ One prop describes the whole strip. Every key is optional and every default is o
 <MathInput toolbar={false} />                             // no tools at all
 ```
 
-`toolbar={false}` removes the strip and its tab stop. Rows can still be split with `Enter` and merged with `Backspace` or `Delete`, so the field remains fully editable without the row controls.
+`toolbar={false}` removes the strip and its tab stop. Rows can still be added with `Enter` and merged with `Backspace` or `Delete`, so the field remains fully editable without the row controls.
 
 > **Renamed in 0.5.0.** `autoHideToolbar`, `showOperators` and `showNavigation` still work and still do exactly what they did; each warns once, in development, naming what to write instead. They go in 0.7.0.
 
@@ -98,7 +98,7 @@ A controlled `value` you did not just receive from `onChange` replaces the conte
 
 ### More than one row
 
-`Enter` splits the current row; from inside a formula, that formula stays whole on the upper row. The toolbar’s row button appends a new row, and `Backspace` at a row start or `Delete` at a row end merges adjacent rows. Rows come back as lines:
+`Enter` opens a new, empty row below the current one and moves the caret there; the current row is left whole, wherever the caret was in it. The toolbar’s row button appends a new row, and `Backspace` at a row start or `Delete` at a row end merges adjacent rows. Rows come back as lines:
 
 ```tsx
 <MathInput defaultValue={"2x+3=11\n2x=8\nx=4"} onChange={setSteps} />
@@ -154,7 +154,7 @@ The toolbar comes in three groups, divided: the formulas that have to be built �
 | `←` `→` | Step through every slot in reading order, then out of the formula |
 | `↑` `↓` | Move between the slots a formula stacks — numerator and denominator, exponent and base — and between rows when nothing around the caret stacks anything |
 | `Home` `End` | Start and end of the row |
-| `Enter` | Splits a row; a formula containing the caret remains whole on the upper row |
+| `Enter` | Opens a new row below and moves the caret to it; the current row is never cut in two |
 | `Backspace` `Delete` | One thing per press; at row boundaries, merges the neighbouring row |
 | `Ctrl`/`Cmd`+`Z`, `Shift`+`Ctrl`/`Cmd`+`Z` | Undo and redo, a run of typing at a time |
 | `Esc` | Leaves the field |
@@ -255,7 +255,7 @@ Input is read more loosely than it is written: `\times` and `×` both arrive as 
 
 ### In a form
 
-`Enter` splits a row and never submits the form around it, so a submit button is the way out:
+`Enter` opens a new row and never submits the form around it, so a submit button is the way out:
 
 ```tsx
 export function AnswerForm({ onSubmit }: { onSubmit: (value: string) => void }) {
@@ -378,7 +378,7 @@ A keystroke aimed at a formula belongs to the editor alone. This is the whole of
 | `←` `→` `Home` `End` | Movement within the row |
 | `↑` `↓` | Only while there is a slot or a row to move to; otherwise left alone |
 | `Tab` `Shift`+`Tab` | Only while there is a slot left to walk to; otherwise left alone, and focus leaves |
-| `Enter` | Splits a row, leaving a formula containing the caret whole on the upper row, so a form is never submitted from inside a formula |
+| `Enter` | Opens a new row below the current one, leaving the current row whole, so a form is never submitted from inside a formula |
 | `Escape` | Leaves the field |
 | `Ctrl`/`Cmd`+`Z`, `Shift`+`Ctrl`/`Cmd`+`Z`, `Ctrl`/`Cmd`+`Y` | Undo and redo |
 | Anything an IME is composing | |
