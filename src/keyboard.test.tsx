@@ -222,3 +222,22 @@ describe("an IME composing over a split run", () => {
     expect(run("0").textContent).toBe("1+2");
   });
 });
+
+describe("soft-keyboard capitalisation", () => {
+  const capitalization = (element: ReactElement) => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    act(() => root.render(element));
+    unmount = () => { root.unmount(); host.remove(); };
+    return [...host.querySelectorAll<HTMLElement>(".math-input__field")].map((field) => field.getAttribute("autocapitalize"));
+  };
+
+  it("is off on every row by default, so an iPhone does not start a row with a capital", () => {
+    expect(capitalization(<MathInput defaultValue={"x\ny"} />)).toEqual(["none", "none"]);
+  });
+
+  it("is left to the keyboard when asked for", () => {
+    expect(capitalization(<MathInput defaultValue={"x\ny"} autoCapitalize />)).toEqual(["sentences", "sentences"]);
+  });
+});
